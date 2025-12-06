@@ -1,10 +1,19 @@
 <script setup lang="ts">
-import { RouterView } from 'vue-router';
+import { RouterView, useRouter } from 'vue-router';
 import { onMounted } from 'vue';
 import WebApp from '@twa-dev/sdk';
 
+const router = useRouter();
+
 onMounted(() => {
   try {
+    // Обработка start_param для deep link (ссылка для клиентов)
+    const startParam = WebApp.initDataUnsafe?.start_param;
+    if (startParam && startParam.startsWith('book_')) {
+      const masterId = startParam.replace('book_', '');
+      router.replace(`/booking/${masterId}`);
+    }
+    
     // Получаем цвета темы из Telegram и применяем к CSS
     if (WebApp.themeParams) {
       const root = document.documentElement;
