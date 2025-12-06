@@ -1,0 +1,189 @@
+@import "tailwindcss";
+
+/* Telegram Theme CSS Variables */
+@theme {
+  /* Colors - будут переопределены из Telegram */
+  --color-tg-bg: var(--tg-theme-bg-color);
+  --color-tg-text: var(--tg-theme-text-color);
+  --color-tg-hint: var(--tg-theme-hint-color);
+  --color-tg-link: var(--tg-theme-link-color);
+  --color-tg-button: var(--tg-theme-button-color);
+  --color-tg-button-text: var(--tg-theme-button-text-color);
+  --color-tg-secondary-bg: var(--tg-theme-secondary-bg-color);
+  
+  /* Custom accent colors */
+  --color-accent: #6366f1;
+  --color-accent-light: #818cf8;
+  --color-accent-dark: #4f46e5;
+  
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+  
+  /* Gradient colors */
+  --color-gradient-start: #6366f1;
+  --color-gradient-end: #a855f7;
+  
+  /* Fonts */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+  
+  /* Animations */
+  --animate-fade-in: fade-in 0.4s ease-out;
+  --animate-slide-up: slide-up 0.3s ease-out;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { 
+    opacity: 0; 
+    transform: translateY(16px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Fallback values for development (dark theme) */
+:root {
+  --tg-theme-bg-color: #ffffff;
+  --tg-theme-text-color: #000000;
+  --tg-theme-hint-color: #999999;
+  --tg-theme-link-color: #007aff;
+  --tg-theme-button-color: #007aff;
+  --tg-theme-button-text-color: #ffffff;
+  --tg-theme-secondary-bg-color: #f2f2f7;
+  
+  /* Computed colors based on theme */
+  --card-bg: var(--tg-theme-secondary-bg-color);
+  --card-border: transparent;
+  --input-bg: var(--tg-theme-secondary-bg-color);
+  --input-border: transparent;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-sans);
+  background-color: var(--tg-theme-bg-color);
+  color: var(--tg-theme-text-color);
+  min-height: 100vh;
+  min-height: 100dvh;
+  line-height: 1.5;
+}
+
+/* Hide scrollbar but keep functionality */
+::-webkit-scrollbar {
+  display: none;
+}
+
+/* Gradient text - always works */
+.gradient-text {
+  background: linear-gradient(135deg, var(--color-accent), var(--color-gradient-end));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Input styles - adaptive */
+input[type="text"],
+input[type="number"],
+input[type="date"],
+input[type="email"],
+textarea,
+select {
+  background: var(--tg-theme-secondary-bg-color);
+  border: none;
+  border-radius: 0.75rem;
+  color: var(--tg-theme-text-color);
+  transition: all 0.2s ease;
+  font-size: 16px; /* Prevents zoom on iOS */
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+input[type="date"]:focus,
+input[type="email"]:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-accent);
+}
+
+/* Button base */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.5rem;
+  font-weight: 600;
+  font-size: 1rem;
+  border-radius: 0.875rem;
+  transition: all 0.15s ease;
+  cursor: pointer;
+  border: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn:active {
+  transform: scale(0.97);
+  opacity: 0.9;
+}
+
+.btn-primary {
+  background: var(--color-accent);
+  color: white;
+}
+
+.btn-secondary {
+  background: var(--tg-theme-secondary-bg-color);
+  color: var(--tg-theme-text-color);
+}
+
+/* Card styles - adaptive to theme */
+.card {
+  background: var(--tg-theme-secondary-bg-color);
+  border-radius: 1rem;
+  padding: 1rem;
+  transition: all 0.15s ease;
+}
+
+.card:active {
+  opacity: 0.9;
+}
+
+/* Spinner */
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--tg-theme-secondary-bg-color);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+/* Safe area padding for iOS */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
