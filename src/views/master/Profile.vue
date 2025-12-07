@@ -6,6 +6,8 @@ import { useRouter } from 'vue-router';
 
 const router = useRouter();
 const profile = ref({
+  displayName: '',
+  description: '',
   workStartHour: 10,
   workEndHour: 20,
   slotDuration: 60,
@@ -43,6 +45,13 @@ onMounted(async () => {
   } catch {}
   
   try {
+    // Загружаем профиль
+    const profileRes = await api.get('/master/profile');
+    if (profileRes.data.profile) {
+      profile.value = { ...profile.value, ...profileRes.data.profile };
+    }
+    
+    // Загружаем услуги
     const servicesRes = await api.get('/master/services');
     services.value = servicesRes.data.services;
   } catch (e) {
@@ -130,6 +139,41 @@ const deleteService = async (id: number) => {
       <div>
         <h1 class="text-xl font-bold">Настройки</h1>
         <p class="text-xs text-tg-hint">Расписание и услуги</p>
+      </div>
+    </div>
+
+    <!-- Profile Info Section -->
+    <div class="card mb-4">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 rounded-xl bg-gradient-end/15 flex items-center justify-center">
+          <svg class="w-5 h-5 text-gradient-end" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+          </svg>
+        </div>
+        <div>
+          <h2 class="font-semibold">О вас</h2>
+          <p class="text-xs text-tg-hint">Информация для клиентов</p>
+        </div>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <label class="text-xs text-tg-hint mb-1.5 block">Имя / Название</label>
+          <input 
+            v-model="profile.displayName" 
+            placeholder="Как вас называть клиентам"
+            class="w-full p-3 rounded-xl"
+          />
+        </div>
+        <div>
+          <label class="text-xs text-tg-hint mb-1.5 block">Специализация</label>
+          <input 
+            v-model="profile.description" 
+            placeholder="Например: Парикмахер-стилист, Мастер маникюра"
+            class="w-full p-3 rounded-xl"
+          />
+          <p class="text-xs text-tg-hint mt-1.5">Будет показано клиентам в уведомлениях</p>
+        </div>
       </div>
     </div>
 

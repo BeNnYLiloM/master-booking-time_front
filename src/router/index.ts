@@ -22,6 +22,11 @@ const router = createRouter({
       path: '/booking/:masterId',
       name: 'Booking',
       component: () => import('../views/client/Booking.vue')
+    },
+    {
+      path: '/client/appointments',
+      name: 'ClientAppointments',
+      component: () => import('../views/client/Appointments.vue')
     }
   ]
 })

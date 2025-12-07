@@ -442,12 +442,20 @@ const formatSelectedDate = computed(() => {
           </div>
         </div>
 
-        <button 
-          @click="router.replace('/')"
-          class="btn btn-secondary w-full"
-        >
-          На главную
-        </button>
+        <div class="flex gap-3">
+          <button 
+            @click="router.replace('/')"
+            class="flex-1 btn btn-secondary"
+          >
+            На главную
+          </button>
+          <router-link 
+            to="/client/appointments"
+            class="flex-1 btn btn-primary"
+          >
+            Мои записи
+          </router-link>
+        </div>
       </div>
     </div>
   </div>

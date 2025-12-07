@@ -127,22 +127,28 @@ const becomeMaster = async () => {
           <div v-else class="spinner w-5 h-5"></div>
         </button>
         
-        <!-- Клиент -->
-        <div class="card text-left flex items-center gap-4 opacity-60">
-          <div class="w-12 h-12 rounded-xl bg-tg-secondary-bg flex items-center justify-center flex-shrink-0">
-            <svg class="w-6 h-6 text-tg-hint" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+        <!-- Клиент — Мои записи -->
+        <router-link 
+          to="/client/appointments"
+          class="card text-left flex items-center gap-4 active:scale-[0.98] transition-transform"
+        >
+          <div class="w-12 h-12 rounded-xl bg-accent/15 flex items-center justify-center flex-shrink-0">
+            <svg class="w-6 h-6 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
           </div>
           <div class="flex-1">
-            <div class="font-semibold">Я клиент</div>
-            <div class="text-xs text-tg-hint">Для записи используйте ссылку от мастера</div>
+            <div class="font-semibold">Мои записи</div>
+            <div class="text-xs text-tg-hint">Посмотреть и управлять записями</div>
           </div>
-        </div>
+          <svg class="w-5 h-5 text-tg-hint" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+          </svg>
+        </router-link>
       </div>
       
       <p class="text-xs text-tg-hint mt-6">
-        Клиенты записываются по ссылке, которую мастер отправляет им напрямую
+        Для записи к мастеру используйте ссылку, которую он вам отправит
       </p>
     </div>
 
