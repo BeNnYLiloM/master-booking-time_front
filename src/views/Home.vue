@@ -8,9 +8,6 @@ const router = useRouter();
 const loading = ref(true);
 const error = ref('');
 const statusText = ref('Подключение...');
-const showRoleSelection = ref(false);
-const becomingMaster = ref(false);
-const user = ref<any>(null);
 
 onMounted(async () => {
   try {
@@ -30,11 +27,13 @@ onMounted(async () => {
     }
 
     const response = await api.post('/auth/login', { initData: initData || '' });
-    user.value = response.data.user;
+    const user = response.data.user;
 
-    statusText.value = 'Загрузка данных...';
+    statusText.value = 'Загрузка...';
     
-    if (user.value.role === 'master') {
+    // Автороутинг по роли
+    if (user.role === 'master') {
+      // Мастер → Dashboard
       router.replace('/master/dashboard');
     } else {
       // Клиент — проверяем есть ли start_param для записи
@@ -43,9 +42,8 @@ onMounted(async () => {
         const masterId = startParam.replace('book_', '');
         router.replace(`/booking/${masterId}`);
       } else {
-        // Нет start_param — показываем выбор роли
-        showRoleSelection.value = true;
-        loading.value = false;
+        // Нет start_param → Мои записи
+        router.replace('/client/appointments');
       }
     }
   } catch (err: any) {
@@ -54,23 +52,6 @@ onMounted(async () => {
     loading.value = false;
   }
 });
-
-const becomeMaster = async () => {
-  becomingMaster.value = true;
-  try {
-    await api.post('/auth/become-master');
-    try {
-      WebApp.HapticFeedback.notificationOccurred('success');
-    } catch {}
-    router.replace('/master/dashboard');
-  } catch (err: any) {
-    console.error(err);
-    error.value = 'Ошибка при регистрации мастера. ' + (err.response?.data?.error || err.message);
-    showRoleSelection.value = false;
-  } finally {
-    becomingMaster.value = false;
-  }
-};
 </script>
 
 <template>
@@ -91,65 +72,6 @@ const becomeMaster = async () => {
       
       <!-- Status text -->
       <p class="text-tg-hint text-sm">{{ statusText }}</p>
-    </div>
-
-    <!-- Role Selection -->
-    <div v-else-if="showRoleSelection" class="text-center animate-fade-in max-w-sm w-full">
-      <!-- Logo -->
-      <div class="w-20 h-20 mx-auto mb-6 rounded-2xl bg-accent flex items-center justify-center">
-        <svg class="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-        </svg>
-      </div>
-      
-      <h1 class="text-2xl font-bold mb-2">Добро пожаловать!</h1>
-      <p class="text-tg-hint text-sm mb-8">Выберите как вы хотите использовать приложение</p>
-      
-      <div class="space-y-3">
-        <!-- Стать мастером -->
-        <button 
-          @click="becomeMaster"
-          :disabled="becomingMaster"
-          class="w-full card text-left flex items-center gap-4 active:scale-[0.98] transition-transform"
-        >
-          <div class="w-12 h-12 rounded-xl bg-accent/15 flex items-center justify-center flex-shrink-0">
-            <svg class="w-6 h-6 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-            </svg>
-          </div>
-          <div class="flex-1">
-            <div class="font-semibold">Я мастер</div>
-            <div class="text-xs text-tg-hint">Принимать записи от клиентов</div>
-          </div>
-          <svg v-if="!becomingMaster" class="w-5 h-5 text-tg-hint" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-          </svg>
-          <div v-else class="spinner w-5 h-5"></div>
-        </button>
-        
-        <!-- Клиент — Мои записи -->
-        <router-link 
-          to="/client/appointments"
-          class="card text-left flex items-center gap-4 active:scale-[0.98] transition-transform"
-        >
-          <div class="w-12 h-12 rounded-xl bg-accent/15 flex items-center justify-center flex-shrink-0">
-            <svg class="w-6 h-6 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-          </div>
-          <div class="flex-1">
-            <div class="font-semibold">Мои записи</div>
-            <div class="text-xs text-tg-hint">Посмотреть и управлять записями</div>
-          </div>
-          <svg class="w-5 h-5 text-tg-hint" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-          </svg>
-        </router-link>
-      </div>
-      
-      <p class="text-xs text-tg-hint mt-6">
-        Для записи к мастеру используйте ссылку, которую он вам отправит
-      </p>
     </div>
 
     <!-- Error State -->
