@@ -20,13 +20,13 @@ const saving = ref(false);
 const showAddService = ref(false);
 
 const weekDays = [
-  { id: 0, name: 'Вс' },
   { id: 1, name: 'Пн' },
   { id: 2, name: 'Вт' },
   { id: 3, name: 'Ср' },
   { id: 4, name: 'Чт' },
   { id: 5, name: 'Пт' },
   { id: 6, name: 'Сб' },
+  { id: 0, name: 'Вс' },
 ];
 
 const toggleDayOff = (dayId: number) => {
@@ -266,7 +266,7 @@ const deleteService = async (id: number) => {
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
         </svg>
-        {{ saving ? 'Сохранение...' : 'Сохранить расписание' }}
+        {{ saving ? 'Сохранение...' : 'Сохранить настройки' }}
       </button>
     </div>
 
