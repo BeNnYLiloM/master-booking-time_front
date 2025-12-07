@@ -56,6 +56,7 @@ const getStatusColor = (status: string) => {
     case 'confirmed': return 'bg-success/15 text-success';
     case 'pending': return 'bg-warning/15 text-warning';
     case 'cancelled': return 'bg-danger/15 text-danger';
+    case 'awaiting_review': return 'bg-info/15 text-info';
     case 'completed': return 'bg-accent/15 text-accent';
     default: return 'bg-tg-hint/15 text-tg-hint';
   }
@@ -66,6 +67,7 @@ const getStatusText = (status: string) => {
     case 'confirmed': return 'Подтверждено';
     case 'pending': return 'Ожидает';
     case 'cancelled': return 'Отменено';
+    case 'awaiting_review': return 'Ожидает вашего подтверждения';
     case 'completed': return 'Завершено';
     default: return status;
   }

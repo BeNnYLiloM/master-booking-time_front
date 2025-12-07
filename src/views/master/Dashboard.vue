@@ -11,8 +11,9 @@ const loading = ref(true);
 const copied = ref(false);
 const processingId = ref<number | null>(null);
 
-// Выбранная дата для фильтрации
-const selectedDate = ref<string | null>(null); // null = показать все
+// Фильтры
+const selectedDate = ref<string | null>(null); // Фильтр по дате из календаря
+const activeFilter = ref<'all' | 'today' | 'pending'>('all'); // Фильтр из карточек статистики
 
 // Генерация 14 дней для выбора
 const calendarDays = computed(() => {
@@ -22,10 +23,10 @@ const calendarDays = computed(() => {
     date.setDate(date.getDate() + i);
     const dateStr = date.toISOString().split('T')[0];
     
-    // Считаем записи на этот день
+    // Считаем активные записи на этот день (не отменённые)
     const count = appointments.value.filter(a => {
       const apptDate = new Date(a.startTime).toISOString().split('T')[0];
-      return apptDate === dateStr;
+      return apptDate === dateStr && a.status !== 'cancelled';
     }).length;
     
     days.push({
@@ -40,24 +41,51 @@ const calendarDays = computed(() => {
   return days;
 });
 
-// Фильтрованные записи по выбранной дате
+// Фильтрованные записи
 const filteredAppointments = computed(() => {
-  if (!selectedDate.value) {
-    return appointments.value;
+  const today = new Date().toISOString().split('T')[0];
+  let result = appointments.value;
+  
+  // Фильтр по дате из календаря (приоритетный)
+  if (selectedDate.value) {
+    result = result.filter(a => {
+      const apptDate = new Date(a.startTime).toISOString().split('T')[0];
+      return apptDate === selectedDate.value;
+    });
+  } else {
+    // Фильтр из карточек статистики
+    switch (activeFilter.value) {
+      case 'today':
+        result = result.filter(a => {
+          const apptDate = new Date(a.startTime).toISOString().split('T')[0];
+          return apptDate === today && a.status !== 'cancelled';
+        });
+        break;
+      case 'pending':
+        result = result.filter(a => a.status === 'pending');
+        break;
+      case 'all':
+      default:
+        // Показываем все
+        break;
+    }
   }
-  return appointments.value.filter(a => {
-    const apptDate = new Date(a.startTime).toISOString().split('T')[0];
-    return apptDate === selectedDate.value;
-  });
+  
+  return result;
 });
 
-// Записи на сегодня (для статистики)
+// Записи на сегодня (для статистики, без отменённых)
 const todayAppointments = computed(() => {
   const today = new Date().toISOString().split('T')[0];
   return appointments.value.filter(a => {
     const apptDate = new Date(a.startTime).toISOString().split('T')[0];
-    return apptDate === today;
+    return apptDate === today && a.status !== 'cancelled';
   });
+});
+
+// Активные записи (без отменённых, для счётчика "Всего")
+const activeAppointments = computed(() => {
+  return appointments.value.filter(a => a.status !== 'cancelled');
 });
 
 const bookingLink = computed(() => {
@@ -92,6 +120,8 @@ const getStatusColor = (status: string) => {
     case 'confirmed': return 'bg-success/15 text-success';
     case 'pending': return 'bg-warning/15 text-warning';
     case 'cancelled': return 'bg-danger/15 text-danger';
+    case 'awaiting_review': return 'bg-info/15 text-info';
+    case 'completed': return 'bg-tg-hint/15 text-tg-hint';
     default: return 'bg-tg-hint/15 text-tg-hint';
   }
 };
@@ -101,6 +131,7 @@ const getStatusText = (status: string) => {
     case 'confirmed': return 'Подтверждено';
     case 'pending': return 'Ожидает';
     case 'cancelled': return 'Отменено';
+    case 'awaiting_review': return 'Ожидает клиента';
     case 'completed': return 'Завершено';
     default: return status;
   }
@@ -128,7 +159,7 @@ const confirmAppointment = async (id: number) => {
   }
 };
 
-// Отклонение записи
+// Отклонение записи (для pending)
 const rejectAppointment = async (id: number) => {
   const confirmed = confirm('Отклонить запись? Клиент получит уведомление.');
   if (!confirmed) return;
@@ -148,6 +179,46 @@ const rejectAppointment = async (id: number) => {
   }
 };
 
+// Отметить что услуга оказана
+const markComplete = async (id: number) => {
+  const confirmed = confirm('Отметить услугу как оказанную? Клиент получит запрос на подтверждение.');
+  if (!confirmed) return;
+  
+  processingId.value = id;
+  try {
+    await api.patch(`/appointments/${id}/mark-complete`);
+    const appt = appointments.value.find(a => a.id === id);
+    if (appt) appt.status = 'awaiting_review';
+    try {
+      WebApp.HapticFeedback.notificationOccurred('success');
+    } catch {}
+  } catch (e: any) {
+    alert(e.response?.data?.error || 'Ошибка отклонения');
+  } finally {
+    processingId.value = null;
+  }
+};
+
+// Отмена записи (для confirmed)
+const cancelAppointment = async (id: number) => {
+  const confirmed = confirm('Отменить запись? Клиент получит уведомление об отмене.');
+  if (!confirmed) return;
+  
+  processingId.value = id;
+  try {
+    await api.patch(`/appointments/${id}/cancel`);
+    const appt = appointments.value.find(a => a.id === id);
+    if (appt) appt.status = 'cancelled';
+    try {
+      WebApp.HapticFeedback.notificationOccurred('warning');
+    } catch {}
+  } catch (e: any) {
+    alert(e.response?.data?.error || 'Ошибка отмены');
+  } finally {
+    processingId.value = null;
+  }
+};
+
 const selectDay = (date: string | null | undefined) => {
   // Если кликнули на уже выбранный день — сбрасываем фильтр
   if (selectedDate.value === date) {
@@ -160,19 +231,37 @@ const selectDay = (date: string | null | undefined) => {
   } catch {}
 };
 
+// Выбор фильтра из карточек статистики
+const selectFilter = (filter: 'all' | 'today' | 'pending') => {
+  selectedDate.value = null; // Сбрасываем выбор дня в календаре
+  activeFilter.value = filter;
+  try {
+    WebApp.HapticFeedback.selectionChanged();
+  } catch {}
+};
+
 // Форматирование заголовка списка
 const listTitle = computed(() => {
-  if (!selectedDate.value) return 'Все записи';
+  // Если выбран день в календаре
+  if (selectedDate.value) {
+    const today = new Date().toISOString().split('T')[0];
+    if (selectedDate.value === today) return 'Сегодня';
+    
+    const date = new Date(selectedDate.value);
+    return date.toLocaleDateString('ru-RU', { 
+      weekday: 'long', 
+      day: 'numeric', 
+      month: 'long' 
+    });
+  }
   
-  const today = new Date().toISOString().split('T')[0];
-  if (selectedDate.value === today) return 'Сегодня';
-  
-  const date = new Date(selectedDate.value);
-  return date.toLocaleDateString('ru-RU', { 
-    weekday: 'long', 
-    day: 'numeric', 
-    month: 'long' 
-  });
+  // Фильтр из карточек
+  switch (activeFilter.value) {
+    case 'today': return 'Сегодня';
+    case 'pending': return 'Ожидают подтверждения';
+    case 'all':
+    default: return 'Все записи';
+  }
 });
 
 onMounted(async () => {
@@ -208,18 +297,30 @@ onMounted(async () => {
 
     <!-- Quick Stats -->
     <div class="grid grid-cols-3 gap-3 mb-6">
-      <div class="card">
+      <button 
+        @click="selectFilter('today')"
+        class="card text-left transition-all"
+        :class="activeFilter === 'today' ? 'ring-2 ring-accent' : ''"
+      >
         <div class="text-2xl font-bold text-accent">{{ todayAppointments.length }}</div>
         <div class="text-xs text-tg-hint mt-1">Сегодня</div>
-      </div>
-      <div class="card">
+      </button>
+      <button 
+        @click="selectFilter('pending')"
+        class="card text-left transition-all"
+        :class="activeFilter === 'pending' ? 'ring-2 ring-warning' : ''"
+      >
         <div class="text-2xl font-bold text-warning">{{ pendingCount }}</div>
         <div class="text-xs text-tg-hint mt-1">Ожидают</div>
-      </div>
-      <div class="card">
-        <div class="text-2xl font-bold text-tg-text">{{ appointments.length }}</div>
+      </button>
+      <button 
+        @click="selectFilter('all')"
+        class="card text-left transition-all"
+        :class="activeFilter === 'all' ? 'ring-2 ring-tg-text' : ''"
+      >
+        <div class="text-2xl font-bold text-tg-text">{{ activeAppointments.length }}</div>
         <div class="text-xs text-tg-hint mt-1">Всего</div>
-      </div>
+      </button>
     </div>
 
     <!-- Share Link Card -->
@@ -282,8 +383,8 @@ onMounted(async () => {
       <div class="flex items-center justify-between mb-3">
         <label class="text-sm font-semibold">Расписание</label>
         <button 
-          v-if="selectedDate"
-          @click="selectDay(null)"
+          v-if="selectedDate || activeFilter !== 'all'"
+          @click="selectFilter('all')"
           class="text-xs text-accent font-medium"
         >
           Показать все
@@ -399,6 +500,28 @@ onMounted(async () => {
               class="flex-1 btn bg-danger/15 text-danger text-sm py-2"
             >
               ✕ Отклонить
+            </button>
+          </div>
+          
+          <!-- Кнопки для confirmed записей -->
+          <div v-else-if="appt.status === 'confirmed'" class="flex gap-2 mt-3 pt-3 border-t border-tg-hint/10">
+            <button 
+              @click="markComplete(appt.id)"
+              :disabled="processingId === appt.id"
+              class="flex-1 btn bg-success/15 text-success text-sm py-2"
+            >
+              <svg v-if="processingId === appt.id" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+              </svg>
+              <span v-else>✓ Услуга оказана</span>
+            </button>
+            <button 
+              @click="cancelAppointment(appt.id)"
+              :disabled="processingId === appt.id"
+              class="flex-1 btn bg-danger/15 text-danger text-sm py-2"
+            >
+              ✕ Отменить
             </button>
           </div>
         </div>
