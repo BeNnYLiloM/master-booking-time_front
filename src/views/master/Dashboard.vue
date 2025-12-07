@@ -9,6 +9,7 @@ const appointments = ref<any[]>([]);
 const user = ref<any>(null);
 const loading = ref(true);
 const copied = ref(false);
+const processingId = ref<number | null>(null);
 
 // Выбранная дата для фильтрации
 const selectedDate = ref<string | null>(null); // null = показать все
@@ -100,7 +101,50 @@ const getStatusText = (status: string) => {
     case 'confirmed': return 'Подтверждено';
     case 'pending': return 'Ожидает';
     case 'cancelled': return 'Отменено';
+    case 'completed': return 'Завершено';
     default: return status;
+  }
+};
+
+// Подсчёт ожидающих записей
+const pendingCount = computed(() => {
+  return appointments.value.filter(a => a.status === 'pending').length;
+});
+
+// Подтверждение записи
+const confirmAppointment = async (id: number) => {
+  processingId.value = id;
+  try {
+    await api.patch(`/appointments/${id}/confirm`);
+    const appt = appointments.value.find(a => a.id === id);
+    if (appt) appt.status = 'confirmed';
+    try {
+      WebApp.HapticFeedback.notificationOccurred('success');
+    } catch {}
+  } catch (e: any) {
+    alert(e.response?.data?.error || 'Ошибка подтверждения');
+  } finally {
+    processingId.value = null;
+  }
+};
+
+// Отклонение записи
+const rejectAppointment = async (id: number) => {
+  const confirmed = confirm('Отклонить запись? Клиент получит уведомление.');
+  if (!confirmed) return;
+  
+  processingId.value = id;
+  try {
+    await api.patch(`/appointments/${id}/reject`);
+    const appt = appointments.value.find(a => a.id === id);
+    if (appt) appt.status = 'cancelled';
+    try {
+      WebApp.HapticFeedback.notificationOccurred('warning');
+    } catch {}
+  } catch (e: any) {
+    alert(e.response?.data?.error || 'Ошибка отклонения');
+  } finally {
+    processingId.value = null;
   }
 };
 
@@ -163,14 +207,18 @@ onMounted(async () => {
     </div>
 
     <!-- Quick Stats -->
-    <div class="grid grid-cols-2 gap-3 mb-6">
+    <div class="grid grid-cols-3 gap-3 mb-6">
       <div class="card">
-        <div class="text-3xl font-bold text-accent">{{ todayAppointments.length }}</div>
-        <div class="text-xs text-tg-hint mt-1">Записей сегодня</div>
+        <div class="text-2xl font-bold text-accent">{{ todayAppointments.length }}</div>
+        <div class="text-xs text-tg-hint mt-1">Сегодня</div>
       </div>
       <div class="card">
-        <div class="text-3xl font-bold text-tg-text">{{ appointments.length }}</div>
-        <div class="text-xs text-tg-hint mt-1">Всего записей</div>
+        <div class="text-2xl font-bold text-warning">{{ pendingCount }}</div>
+        <div class="text-xs text-tg-hint mt-1">Ожидают</div>
+      </div>
+      <div class="card">
+        <div class="text-2xl font-bold text-tg-text">{{ appointments.length }}</div>
+        <div class="text-xs text-tg-hint mt-1">Всего</div>
       </div>
     </div>
 
@@ -304,31 +352,55 @@ onMounted(async () => {
         <div 
           v-for="appt in filteredAppointments" 
           :key="appt.id" 
-          class="card flex items-center gap-3"
+          class="card"
         >
-          <!-- Плашка с датой/временем -->
-          <div class="w-14 h-14 rounded-xl bg-accent/10 flex flex-col items-center justify-center flex-shrink-0">
-            <!-- Если выбран конкретный день — показываем только время -->
-            <template v-if="selectedDate">
-              <span class="text-lg font-bold leading-none text-accent">{{ formatTime(appt.startTime).split(':')[0] }}</span>
-              <span class="text-xs text-tg-hint">{{ formatTime(appt.startTime).split(':')[1] }}</span>
-            </template>
-            <!-- Если все записи — показываем дату и время -->
-            <template v-else>
-              <span class="text-sm font-bold leading-none text-accent">{{ new Date(appt.startTime).getDate() }} {{ new Date(appt.startTime).toLocaleDateString('ru-RU', { month: 'short' }) }}</span>
-              <span class="text-xs text-tg-hint mt-0.5">{{ formatTime(appt.startTime) }}</span>
-            </template>
+          <div class="flex items-center gap-3">
+            <!-- Плашка с датой/временем -->
+            <div class="w-14 h-14 rounded-xl bg-accent/10 flex flex-col items-center justify-center flex-shrink-0">
+              <!-- Если выбран конкретный день — показываем только время -->
+              <template v-if="selectedDate">
+                <span class="text-lg font-bold leading-none text-accent">{{ formatTime(appt.startTime).split(':')[0] }}</span>
+                <span class="text-xs text-tg-hint">{{ formatTime(appt.startTime).split(':')[1] }}</span>
+              </template>
+              <!-- Если все записи — показываем дату и время -->
+              <template v-else>
+                <span class="text-sm font-bold leading-none text-accent">{{ new Date(appt.startTime).getDate() }} {{ new Date(appt.startTime).toLocaleDateString('ru-RU', { month: 'short' }) }}</span>
+                <span class="text-xs text-tg-hint mt-0.5">{{ formatTime(appt.startTime) }}</span>
+              </template>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="font-semibold truncate">{{ appt.client?.firstName || 'Клиент' }}</div>
+              <div class="text-sm text-tg-hint truncate">{{ appt.service?.title }}</div>
+            </div>
+            <span 
+              class="text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0"
+              :class="getStatusColor(appt.status)"
+            >
+              {{ getStatusText(appt.status) }}
+            </span>
           </div>
-          <div class="flex-1 min-w-0">
-            <div class="font-semibold truncate">{{ appt.client?.firstName || 'Клиент' }}</div>
-            <div class="text-sm text-tg-hint truncate">{{ appt.service?.title }}</div>
+          
+          <!-- Кнопки для pending записей -->
+          <div v-if="appt.status === 'pending'" class="flex gap-2 mt-3 pt-3 border-t border-tg-hint/10">
+            <button 
+              @click="confirmAppointment(appt.id)"
+              :disabled="processingId === appt.id"
+              class="flex-1 btn bg-success/15 text-success text-sm py-2"
+            >
+              <svg v-if="processingId === appt.id" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+              </svg>
+              <span v-else>✓ Подтвердить</span>
+            </button>
+            <button 
+              @click="rejectAppointment(appt.id)"
+              :disabled="processingId === appt.id"
+              class="flex-1 btn bg-danger/15 text-danger text-sm py-2"
+            >
+              ✕ Отклонить
+            </button>
           </div>
-          <span 
-            class="text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0"
-            :class="getStatusColor(appt.status)"
-          >
-            {{ getStatusText(appt.status) }}
-          </span>
         </div>
       </div>
     </div>
