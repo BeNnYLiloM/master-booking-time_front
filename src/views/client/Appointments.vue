@@ -110,12 +110,6 @@ onMounted(async () => {
     // Получаем записи
     const res = await api.get('/appointments');
     appointments.value = res.data;
-    
-    // BackButton для возврата
-    try {
-      WebApp.BackButton.onClick(() => router.push('/'));
-      WebApp.BackButton.show();
-    } catch {}
   } catch (e) {
     console.error(e);
   } finally {
@@ -128,15 +122,6 @@ onMounted(async () => {
   <div class="p-4 pb-24 animate-fade-in">
     <!-- Header -->
     <div class="mb-6">
-      <button 
-        @click="router.push('/')"
-        class="flex items-center gap-1 text-tg-hint text-sm mb-3 active:opacity-70"
-      >
-        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-        </svg>
-        Назад
-      </button>
       <h1 class="text-2xl font-bold">Мои записи</h1>
       <p class="text-tg-hint text-sm">Управляйте своими записями</p>
     </div>
