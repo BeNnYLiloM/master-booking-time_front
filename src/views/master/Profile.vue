@@ -8,10 +8,8 @@ const router = useRouter();
 const profile = ref({
   displayName: '',
   description: '',
-  workStartHour: 10,
-  workEndHour: 20,
   slotDuration: 60,
-  daysOff: [] as number[]
+  schedule: {} as Record<number, { enabled: boolean; start: string; end: string }>
 });
 const services = ref<any[]>([]);
 const newService = ref({ title: '', price: 0, duration: 60, currency: 'RUB' });
@@ -20,21 +18,20 @@ const saving = ref(false);
 const showAddService = ref(false);
 
 const weekDays = [
-  { id: 1, name: 'Пн' },
-  { id: 2, name: 'Вт' },
-  { id: 3, name: 'Ср' },
-  { id: 4, name: 'Чт' },
-  { id: 5, name: 'Пт' },
-  { id: 6, name: 'Сб' },
-  { id: 0, name: 'Вс' },
+  { id: 1, name: 'Понедельник', short: 'Пн' },
+  { id: 2, name: 'Вторник', short: 'Вт' },
+  { id: 3, name: 'Среда', short: 'Ср' },
+  { id: 4, name: 'Четверг', short: 'Чт' },
+  { id: 5, name: 'Пятница', short: 'Пт' },
+  { id: 6, name: 'Суббота', short: 'Сб' },
+  { id: 0, name: 'Воскресенье', short: 'Вс' },
 ];
 
-const toggleDayOff = (dayId: number) => {
-  const idx = profile.value.daysOff.indexOf(dayId);
-  if (idx > -1) {
-    profile.value.daysOff.splice(idx, 1);
+const toggleDay = (dayId: number) => {
+  if (!profile.value.schedule[dayId]) {
+    profile.value.schedule[dayId] = { enabled: true, start: '09:00', end: '18:00' };
   } else {
-    profile.value.daysOff.push(dayId);
+    profile.value.schedule[dayId].enabled = !profile.value.schedule[dayId].enabled;
   }
 };
 
@@ -47,8 +44,25 @@ onMounted(async () => {
   try {
     // Загружаем профиль
     const profileRes = await api.get('/master/profile');
-    if (profileRes.data.profile) {
-      profile.value = { ...profile.value, ...profileRes.data.profile };
+    if (profileRes.data) {
+      // Если есть старый формат, инициализируем schedule
+      if (!profileRes.data.schedule) {
+        const defaultSchedule: any = {};
+        for (let i = 0; i < 7; i++) {
+          defaultSchedule[i] = {
+            enabled: i >= 1 && i <= 5,
+            start: '09:00',
+            end: '18:00'
+          };
+        }
+        profile.value.schedule = defaultSchedule;
+      } else {
+        profile.value = { ...profile.value, ...profileRes.data };
+      }
+      
+      profile.value.displayName = profileRes.data.displayName || '';
+      profile.value.description = profileRes.data.description || '';
+      profile.value.slotDuration = profileRes.data.slotDuration || 60;
     }
     
     // Загружаем услуги
@@ -187,37 +201,7 @@ const deleteService = async (id: number) => {
         </div>
         <div>
           <h2 class="font-semibold">Расписание</h2>
-          <p class="text-xs text-tg-hint">Рабочие часы и выходные</p>
-        </div>
-      </div>
-
-      <!-- Working Hours -->
-      <div class="grid grid-cols-2 gap-3 mb-4">
-        <div>
-          <label class="text-xs text-tg-hint mb-1.5 block">Начало работы</label>
-          <div class="relative">
-            <input 
-              type="number" 
-              v-model="profile.workStartHour" 
-              min="0" 
-              max="23"
-              class="w-full p-3 rounded-xl text-center font-semibold"
-            />
-            <span class="absolute right-3 top-1/2 -translate-y-1/2 text-tg-hint text-sm">:00</span>
-          </div>
-        </div>
-        <div>
-          <label class="text-xs text-tg-hint mb-1.5 block">Конец работы</label>
-          <div class="relative">
-            <input 
-              type="number" 
-              v-model="profile.workEndHour" 
-              min="0" 
-              max="23"
-              class="w-full p-3 rounded-xl text-center font-semibold"
-            />
-            <span class="absolute right-3 top-1/2 -translate-y-1/2 text-tg-hint text-sm">:00</span>
-          </div>
+          <p class="text-xs text-tg-hint">Рабочие часы для каждого дня</p>
         </div>
       </div>
 
@@ -239,21 +223,48 @@ const deleteService = async (id: number) => {
         </div>
       </div>
 
-      <!-- Days Off -->
-      <div>
-        <label class="text-xs text-tg-hint mb-1.5 block">Выходные дни</label>
-        <div class="flex gap-2">
-          <button 
-            v-for="day in weekDays" 
-            :key="day.id"
-            @click="toggleDayOff(day.id)"
-            class="flex-1 py-2.5 rounded-xl text-sm font-medium transition-all"
-            :class="profile.daysOff.includes(day.id) 
-              ? 'bg-danger/15 text-danger' 
-              : 'bg-tg-bg'"
+      <!-- Days Schedule -->
+      <div class="space-y-3">
+        <div 
+          v-for="day in weekDays" 
+          :key="day.id"
+          class="p-3 rounded-xl bg-tg-bg"
+        >
+          <div class="flex items-center justify-between mb-2">
+            <span class="font-medium">{{ day.name }}</span>
+            <button
+              @click="toggleDay(day.id)"
+              class="relative w-12 h-6 rounded-full transition-colors"
+              :class="profile.schedule[day.id]?.enabled ? 'bg-accent' : 'bg-tg-hint/20'"
+            >
+              <div 
+                class="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform"
+                :class="{ 'translate-x-6': profile.schedule[day.id]?.enabled }"
+              ></div>
+            </button>
+          </div>
+          
+          <div 
+            v-if="profile.schedule[day.id]?.enabled" 
+            class="grid grid-cols-2 gap-2 mt-2"
           >
-            {{ day.name }}
-          </button>
+            <div>
+              <label class="text-xs text-tg-hint mb-1 block">Начало</label>
+              <input 
+                type="time"
+                v-model="profile.schedule[day.id].start"
+                class="w-full p-2 rounded-lg text-sm bg-tg-secondary-bg"
+              />
+            </div>
+            <div>
+              <label class="text-xs text-tg-hint mb-1 block">Конец</label>
+              <input 
+                type="time"
+                v-model="profile.schedule[day.id].end"
+                class="w-full p-2 rounded-lg text-sm bg-tg-secondary-bg"
+              />
+            </div>
+          </div>
         </div>
       </div>
 
