@@ -161,12 +161,12 @@ onMounted(async () => {
   try {
     // Загружаем профиль
     const profileRes = await api.get('/master/profile');
-    if (profileRes.data) {
+    if (profileRes.data.profile) {
       profile.value = {
-        displayName: profileRes.data.displayName || '',
-        description: profileRes.data.description || '',
-        slotDuration: profileRes.data.slotDuration || 60,
-        workingDates: profileRes.data.workingDates || {}
+        displayName: profileRes.data.profile.displayName || '',
+        description: profileRes.data.profile.description || '',
+        slotDuration: profileRes.data.profile.slotDuration || 60,
+        workingDates: profileRes.data.profile.workingDates || {}
       };
     }
     
@@ -298,25 +298,28 @@ const deleteService = async (id: number) => {
 
     <!-- Schedule Section -->
     <div class="card mb-4">
-      <div class="flex items-center justify-between mb-4">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-xl bg-accent/15 flex items-center justify-center">
-            <svg class="w-5 h-5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-          </div>
-          <div>
-            <h2 class="font-semibold">График работы</h2>
-            <p class="text-xs text-tg-hint">Выберите рабочие дни</p>
-          </div>
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 rounded-xl bg-accent/15 flex items-center justify-center">
+          <svg class="w-5 h-5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
         </div>
-        <button 
-          @click="fillWeekdays"
-          class="text-xs btn bg-accent/15 text-accent py-2 px-3"
-        >
-          Заполнить Пн-Пт
-        </button>
+        <div>
+          <h2 class="font-semibold">График работы</h2>
+          <p class="text-xs text-tg-hint">Выберите рабочие дни</p>
+        </div>
       </div>
+
+      <!-- Quick Fill Button -->
+      <button 
+        @click="fillWeekdays"
+        class="w-full mb-4 btn bg-accent/15 text-accent text-sm py-2.5"
+      >
+        <svg class="w-4 h-4 inline mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+        </svg>
+        Заполнить Пн-Пт на 2 месяца
+      </button>
 
       <!-- Slot Duration -->
       <div class="mb-4">
