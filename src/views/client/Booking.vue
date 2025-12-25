@@ -194,6 +194,11 @@ const selectSlot = (time: string) => {
 
 const selectDay = (date: string | undefined) => {
   if (date) {
+    // Проверяем что выбранная дата является рабочим днём
+    if (!masterWorkingDates.value[date]) {
+      alert('Выбранный день не является рабочим. Пожалуйста, выберите другую дату.');
+      return;
+    }
     selectedDate.value = date;
     loadSlots();
   }
@@ -223,8 +228,16 @@ const openDatePicker = () => {
 // Обработка выбора даты из нативного picker
 const onDateChange = (event: Event) => {
   const target = event.target as HTMLInputElement;
-  if (target.value) {
-    selectedDate.value = target.value;
+  const dateValue = target.value;
+  if (dateValue) {
+    // Проверяем что выбранная дата является рабочим днём
+    if (!masterWorkingDates.value[dateValue]) {
+      alert('Выбранный день не является рабочим. Пожалуйста, выберите другую дату.');
+      // Сбрасываем на текущую дату
+      target.value = selectedDate.value || '';
+      return;
+    }
+    selectedDate.value = dateValue;
     loadSlots();
   }
 };
