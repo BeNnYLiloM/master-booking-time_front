@@ -19,9 +19,8 @@ const showAddService = ref(false);
 
 // Для календаря
 const currentMonth = ref(new Date());
-const selectedDate = ref<string | null>(null);
-const showTimeModal = ref(false);
-const editingTime = ref({ start: '09:00', end: '18:00' });
+const selectedDates = ref<Set<string>>(new Set());
+const workingTime = ref({ start: '09:00', end: '18:00' });
 
 // Генерация дней месяца
 const calendarDays = computed(() => {
@@ -45,12 +44,14 @@ const calendarDays = computed(() => {
     const dateStr: string = date.toISOString().split('T')[0] as string;
     const isPast = date < new Date(new Date().setHours(0, 0, 0, 0));
     const hasSchedule = profile.value.workingDates?.[dateStr] !== undefined;
+    const isSelected = selectedDates.value.has(dateStr);
     
     days.push({
       date: dateStr,
       day: day,
       isPast,
-      hasSchedule
+      hasSchedule,
+      isSelected
     });
   }
   
@@ -63,57 +64,39 @@ const monthName = computed(() => {
 
 const prevMonth = () => {
   currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() - 1);
+  selectedDates.value.clear(); // Сбрасываем выделение при смене месяца
 };
 
 const nextMonth = () => {
   currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() + 1);
+  selectedDates.value.clear(); // Сбрасываем выделение при смене месяца
 };
 
-const selectDate = (dateStr: string, isPast: boolean) => {
+const toggleDate = (dateStr: string, isPast: boolean) => {
   if (isPast) return;
   
-  selectedDate.value = dateStr;
-  
-  // Если уже есть расписание - редактируем, если нет - дефолт
-  if (profile.value.workingDates[dateStr]) {
-    editingTime.value = { ...profile.value.workingDates[dateStr] };
+  if (selectedDates.value.has(dateStr)) {
+    selectedDates.value.delete(dateStr);
   } else {
-    editingTime.value = { start: '09:00', end: '18:00' };
+    selectedDates.value.add(dateStr);
   }
   
-  showTimeModal.value = true;
+  try {
+    WebApp.HapticFeedback.selectionChanged();
+  } catch {}
 };
 
-const saveTime = () => {
-  if (!selectedDate.value) return;
-  
-  profile.value.workingDates = {
-    ...profile.value.workingDates,
-    [selectedDate.value]: { ...editingTime.value }
-  };
-  showTimeModal.value = false;
+const removeSelectedDates = () => {
+  const newDates = { ...profile.value.workingDates };
+  selectedDates.value.forEach(dateStr => {
+    delete newDates[dateStr];
+  });
+  profile.value.workingDates = newDates;
+  selectedDates.value.clear();
   
   try {
     WebApp.HapticFeedback.notificationOccurred('success');
   } catch {}
-};
-
-const removeDate = () => {
-  if (!selectedDate.value) return;
-  
-  const newDates = { ...profile.value.workingDates };
-  delete newDates[selectedDate.value];
-  profile.value.workingDates = newDates;
-  showTimeModal.value = false;
-  
-  try {
-    WebApp.HapticFeedback.notificationOccurred('warning');
-  } catch {}
-};
-
-const closeModal = () => {
-  showTimeModal.value = false;
-  selectedDate.value = null;
 };
 
 // Массовое заполнение
@@ -189,6 +172,16 @@ onUnmounted(() => {
 const saveProfile = async () => {
   saving.value = true;
   try {
+    // Применяем время к выделенным дням
+    if (selectedDates.value.size > 0) {
+      const newDates = { ...profile.value.workingDates };
+      selectedDates.value.forEach(dateStr => {
+        newDates[dateStr] = { ...workingTime.value };
+      });
+      profile.value.workingDates = newDates;
+      selectedDates.value.clear();
+    }
+    
     await api.put('/master/profile', profile.value);
     try {
       WebApp.HapticFeedback.notificationOccurred('success');
@@ -366,12 +359,13 @@ const deleteService = async (id: number) => {
           <button
             v-for="(day, idx) in calendarDays"
             :key="idx"
-            @click="day && !day.isPast && day.date ? selectDate(day.date, day.isPast) : null"
+            @click="day && !day.isPast && day.date ? toggleDate(day.date, day.isPast) : null"
             :disabled="!day || day.isPast"
             class="aspect-square rounded-lg text-sm font-medium transition-all"
             :class="{
-              'bg-tg-bg': day && !day.isPast && !day.hasSchedule,
-              'bg-success/15 text-success': day && day.hasSchedule,
+              'bg-tg-bg': day && !day.isPast && !day.hasSchedule && !day.isSelected,
+              'bg-success/15 text-success': day && day.hasSchedule && !day.isSelected,
+              'bg-accent text-white': day && day.isSelected,
               'opacity-30': day && day.isPast,
               'invisible': !day
             }"
@@ -384,12 +378,51 @@ const deleteService = async (id: number) => {
       <!-- Legend -->
       <div class="flex items-center gap-4 mb-4 text-xs">
         <div class="flex items-center gap-1.5">
+          <div class="w-4 h-4 rounded bg-accent"></div>
+          <span class="text-tg-hint">Выделено</span>
+        </div>
+        <div class="flex items-center gap-1.5">
           <div class="w-4 h-4 rounded bg-success/15"></div>
           <span class="text-tg-hint">Рабочий день</span>
         </div>
         <div class="flex items-center gap-1.5">
           <div class="w-4 h-4 rounded bg-tg-bg"></div>
           <span class="text-tg-hint">Выходной</span>
+        </div>
+      </div>
+
+      <!-- Time Settings for Selected Days -->
+      <div v-if="selectedDates.size > 0" class="mb-4 p-4 rounded-xl bg-accent/10 border border-accent/20">
+        <div class="flex items-center justify-between mb-3">
+          <div>
+            <div class="font-semibold text-accent">Выбрано дней: {{ selectedDates.size }}</div>
+            <div class="text-xs text-tg-hint">Укажите рабочее время</div>
+          </div>
+          <button 
+            @click="removeSelectedDates"
+            class="text-xs btn bg-danger/15 text-danger py-1.5 px-3"
+          >
+            Удалить
+          </button>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-sm text-tg-hint mb-1.5 block">Начало</label>
+            <input 
+              type="time"
+              v-model="workingTime.start"
+              class="w-full p-3 rounded-xl bg-tg-bg text-center text-lg font-semibold"
+            />
+          </div>
+          <div>
+            <label class="text-sm text-tg-hint mb-1.5 block">Конец</label>
+            <input 
+              type="time"
+              v-model="workingTime.end"
+              class="w-full p-3 rounded-xl bg-tg-bg text-center text-lg font-semibold"
+            />
+          </div>
         </div>
       </div>
 
@@ -405,53 +438,6 @@ const deleteService = async (id: number) => {
         {{ saving ? 'Сохранение...' : 'Сохранить настройки' }}
       </button>
     </div>
-
-    <!-- Time Modal -->
-    <transition name="fade">
-      <div v-if="showTimeModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" @click.self="closeModal">
-        <div class="bg-tg-bg rounded-2xl p-6 max-w-sm w-full animate-scale-in">
-          <h3 class="text-lg font-bold mb-4">Рабочее время</h3>
-          <p class="text-sm text-tg-hint mb-4">
-            {{ selectedDate ? new Date(selectedDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' }) : '' }}
-          </p>
-          
-          <div class="space-y-3 mb-6">
-            <div>
-              <label class="text-sm text-tg-hint mb-1.5 block">Начало</label>
-              <input 
-                type="time"
-                v-model="editingTime.start"
-                class="w-full p-3 rounded-xl bg-tg-secondary-bg text-center text-lg font-semibold"
-              />
-            </div>
-            <div>
-              <label class="text-sm text-tg-hint mb-1.5 block">Конец</label>
-              <input 
-                type="time"
-                v-model="editingTime.end"
-                class="w-full p-3 rounded-xl bg-tg-secondary-bg text-center text-lg font-semibold"
-              />
-            </div>
-          </div>
-          
-          <div class="flex gap-2">
-            <button 
-              v-if="selectedDate && profile.workingDates[selectedDate]"
-              @click="removeDate"
-              class="flex-1 btn bg-danger/15 text-danger"
-            >
-              Удалить
-            </button>
-            <button @click="closeModal" class="flex-1 btn bg-tg-secondary-bg">
-              Отмена
-            </button>
-            <button @click="saveTime" class="flex-1 btn btn-primary">
-              Сохранить
-            </button>
-          </div>
-        </div>
-      </div>
-    </transition>
 
     <!-- Services Section -->
     <div class="card">
