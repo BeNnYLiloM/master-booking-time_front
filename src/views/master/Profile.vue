@@ -252,7 +252,7 @@ const deleteService = async (id: number) => {
               <label class="text-xs text-tg-hint mb-1 block">Начало</label>
               <input 
                 type="time"
-                v-model="profile.schedule[day.id].start"
+                v-model="profile.schedule[day.id]!.start"
                 class="w-full p-2 rounded-lg text-sm bg-tg-secondary-bg"
               />
             </div>
@@ -260,7 +260,7 @@ const deleteService = async (id: number) => {
               <label class="text-xs text-tg-hint mb-1 block">Конец</label>
               <input 
                 type="time"
-                v-model="profile.schedule[day.id].end"
+                v-model="profile.schedule[day.id]!.end"
                 class="w-full p-2 rounded-lg text-sm bg-tg-secondary-bg"
               />
             </div>
