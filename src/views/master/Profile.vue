@@ -75,8 +75,24 @@ const nextMonth = () => {
 const toggleDate = (dateStr: string, isPast: boolean) => {
   if (isPast) return;
   
+  // Если это первый выбранный день - подставляем его время
+  if (selectedDates.value.size === 0) {
+    if (profile.value.workingDates[dateStr]) {
+      // Если у дня уже есть расписание - берём его
+      workingTime.value = { ...profile.value.workingDates[dateStr] };
+    } else {
+      // Если расписания нет - дефолт
+      workingTime.value = { start: '09:00', end: '18:00' };
+    }
+  }
+  
   if (selectedDates.value.has(dateStr)) {
     selectedDates.value.delete(dateStr);
+    
+    // Если сняли все выделения - сбрасываем время на дефолт
+    if (selectedDates.value.size === 0) {
+      workingTime.value = { start: '09:00', end: '18:00' };
+    }
   } else {
     selectedDates.value.add(dateStr);
   }
@@ -400,7 +416,7 @@ const deleteService = async (id: number) => {
           </div>
           <button 
             @click="removeSelectedDates"
-            class="text-xs btn bg-danger/15 text-danger py-1.5 px-3"
+            class="text-xs btn bg-danger/15 text-danger py-1.5 px-3 shrink-0"
           >
             Удалить
           </button>
@@ -412,7 +428,7 @@ const deleteService = async (id: number) => {
             <input 
               type="time"
               v-model="workingTime.start"
-              class="w-full p-3 rounded-xl bg-tg-bg text-center text-lg font-semibold"
+              class="time-input w-full p-3 rounded-xl bg-tg-bg text-center text-lg font-semibold"
             />
           </div>
           <div>
@@ -420,7 +436,7 @@ const deleteService = async (id: number) => {
             <input 
               type="time"
               v-model="workingTime.end"
-              class="w-full p-3 rounded-xl bg-tg-bg text-center text-lg font-semibold"
+              class="time-input w-full p-3 rounded-xl bg-tg-bg text-center text-lg font-semibold"
             />
           </div>
         </div>
@@ -575,5 +591,20 @@ const deleteService = async (id: number) => {
     opacity: 1;
     transform: scale(1);
   }
+}
+
+/* Фикс для iPhone - явные стили для time input */
+.time-input {
+  -webkit-appearance: none;
+  appearance: none;
+  border: none;
+  outline: none;
+  color: var(--tg-theme-text-color);
+  background-color: var(--tg-theme-bg-color);
+}
+
+.time-input::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
 }
 </style>
