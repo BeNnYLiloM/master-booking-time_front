@@ -26,38 +26,62 @@ const selectedSlot = ref<string | null>(null);
 const loading = ref(true);
 const loadingSlots = ref(false);
 const booking = ref(false);
-const dateInputRef = ref<HTMLInputElement | null>(null);
+const error = ref<string | null>(null);
 const masterWorkingDates = ref<Record<string, any>>({});
+const currentMonth = ref(new Date());
 
 let mainButtonHandler: (() => void) | null = null;
 
-// Generate next 7 days for quick selection - только рабочие дни
-const nextDays = computed(() => {
-  const days = [];
-  let daysAdded = 0;
-  let dayOffset = 0;
+// Генерация дней месяца для календаря
+const calendarDays = computed(() => {
+  const year = currentMonth.value.getFullYear();
+  const month = currentMonth.value.getMonth();
   
-  // Ищем следующие 7 рабочих дней
-  while (daysAdded < 7 && dayOffset < 60) { // максимум 60 дней вперёд
-    const date = new Date();
-    date.setDate(date.getDate() + dayOffset);
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  
+  const days = [];
+  const startPadding = (firstDay.getDay() + 6) % 7; // Понедельник = 0
+  
+  // Пустые ячейки в начале
+  for (let i = 0; i < startPadding; i++) {
+    days.push(null);
+  }
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  // Дни месяца
+  for (let day = 1; day <= lastDay.getDate(); day++) {
+    const date = new Date(year, month, day);
     const dateStr: string = date.toISOString().split('T')[0] as string;
+    const isPast = date < today;
+    const hasSchedule = masterWorkingDates.value[dateStr] !== undefined;
+    const isSelected = selectedDate.value === dateStr;
     
-    // Проверяем есть ли этот день в рабочих днях мастера
-    if (masterWorkingDates.value[dateStr]) {
-      days.push({
-        date: dateStr,
-        day: date.toLocaleDateString('ru-RU', { weekday: 'short' }),
-        num: date.getDate(),
-        isToday: dayOffset === 0
-      });
-      daysAdded++;
-    }
-    dayOffset++;
+    days.push({
+      date: dateStr,
+      day: day,
+      isPast,
+      hasSchedule,
+      isSelected
+    });
   }
   
   return days;
 });
+
+const monthName = computed(() => {
+  return currentMonth.value.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+});
+
+const prevMonth = () => {
+  currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() - 1);
+};
+
+const nextMonth = () => {
+  currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() + 1);
+};
 
 onMounted(async () => {
   try {
@@ -69,13 +93,22 @@ onMounted(async () => {
     const masterRes = await api.get(`/public/master/${masterId}`);
     masterWorkingDates.value = masterRes.data.masterProfile?.workingDates || {};
     
-    // Устанавливаем первый рабочий день как выбранный по умолчанию
+    if (Object.keys(masterWorkingDates.value).length === 0) {
+      error.value = 'У мастера не настроено рабочее расписание';
+      return;
+    }
+    
+    // Устанавливаем первый рабочий день и текущий месяц
     const firstWorkingDay = Object.keys(masterWorkingDates.value)
       .filter(date => new Date(date) >= new Date(new Date().setHours(0, 0, 0, 0)))
       .sort()[0];
     
     if (firstWorkingDay) {
       selectedDate.value = firstWorkingDay;
+      currentMonth.value = new Date(firstWorkingDay);
+    } else {
+      error.value = 'У мастера нет доступных рабочих дней';
+      return;
     }
   } catch (e) {
     console.error(e);
@@ -192,53 +225,14 @@ const selectSlot = (time: string) => {
   }
 };
 
-const selectDay = (date: string | undefined) => {
-  if (date) {
-    // Проверяем что выбранная дата является рабочим днём
-    if (!masterWorkingDates.value[date]) {
-      alert('Выбранный день не является рабочим. Пожалуйста, выберите другую дату.');
-      return;
-    }
-    selectedDate.value = date;
-    loadSlots();
-  }
-};
-
-// Проверяем, входит ли выбранная дата в быстрый выбор (7 дней)
-const isCustomDate = computed(() => {
-  return !nextDays.value.some(d => d.date === selectedDate.value);
-});
-
-// Определяем мобильное устройство
-const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
-// Открыть date picker (для десктопа)
-const openDatePicker = () => {
-  const input = dateInputRef.value;
-  if (!input) return;
+const selectDay = (date: string | undefined, isPast: boolean, hasSchedule: boolean) => {
+  if (!date || isPast || !hasSchedule) return;
   
-  try {
-    input.showPicker();
-  } catch {
-    // Если showPicker не поддерживается, ничего не делаем
-    // На мобильных сработает нативный клик по input
-  }
-};
-
-// Обработка выбора даты из нативного picker
-const onDateChange = (event: Event) => {
-  const target = event.target as HTMLInputElement;
-  const dateValue = target.value;
-  if (dateValue) {
-    // Проверяем что выбранная дата является рабочим днём
-    if (!masterWorkingDates.value[dateValue]) {
-      alert('Выбранный день не является рабочим. Пожалуйста, выберите другую дату.');
-      // Сбрасываем на текущую дату
-      target.value = selectedDate.value || '';
-      return;
-    }
-    selectedDate.value = dateValue;
-    loadSlots();
+  selectedDate.value = date;
+  loadSlots();
+  
+  if (isTelegram.value) {
+    try { WebApp.HapticFeedback.selectionChanged(); } catch {}
   }
 };
 
@@ -280,6 +274,15 @@ const formatSelectedDate = computed(() => {
         <div v-if="loading" class="py-12 text-center">
           <div class="spinner mx-auto mb-3"></div>
           <p class="text-tg-hint text-sm">Загрузка услуг...</p>
+        </div>
+
+        <div v-else-if="error" class="py-12 text-center">
+          <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-red-500/10 flex items-center justify-center">
+            <svg class="w-8 h-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <p class="text-tg-hint text-sm">{{ error }}</p>
         </div>
 
         <div v-else class="space-y-3">
@@ -352,46 +355,73 @@ const formatSelectedDate = computed(() => {
         <!-- Date Quick Selection -->
         <div class="mb-6">
           <label class="text-sm font-semibold mb-3 block">Дата</label>
-          <div class="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4">
-            <button 
-              v-for="d in nextDays" 
-              :key="d.date"
-              @click="selectDay(d.date)"
-              class="flex-shrink-0 w-14 py-3 rounded-xl text-center transition-all"
-              :class="selectedDate === d.date 
-                ? 'bg-accent text-white' 
-                : 'bg-tg-secondary-bg'"
-            >
-              <div class="text-xs opacity-70">{{ d.day }}</div>
-              <div class="text-lg font-bold">{{ d.num }}</div>
-              <div v-if="d.isToday" class="w-1.5 h-1.5 rounded-full bg-current mx-auto mt-1 opacity-60"></div>
-            </button>
+          
+          <!-- Календарь -->
+          <div class="card mb-4">
+            <!-- Навигация месяца -->
+            <div class="flex items-center justify-between mb-4">
+              <button
+                @click="prevMonth"
+                class="w-9 h-9 rounded-lg bg-tg-secondary-bg hover:bg-tg-secondary-bg/70 transition-colors flex items-center justify-center"
+              >
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              
+              <h3 class="text-base font-semibold capitalize">{{ monthName }}</h3>
+              
+              <button
+                @click="nextMonth"
+                class="w-9 h-9 rounded-lg bg-tg-secondary-bg hover:bg-tg-secondary-bg/70 transition-colors flex items-center justify-center"
+              >
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
             
-            <!-- Кнопка "Другая дата" -->
-            <div 
-              class="flex-shrink-0 w-14 py-3 rounded-xl text-center transition-all relative cursor-pointer overflow-hidden"
-              :class="isCustomDate ? 'bg-accent text-white' : 'bg-tg-secondary-bg'"
-              @click="openDatePicker"
-            >
-              <div class="text-xs opacity-70">ещё</div>
-              <svg class="w-5 h-5 mx-auto mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              <!-- Date input внутри кнопки -->
-              <input 
-                ref="dateInputRef"
-                type="date" 
-                :value="selectedDate"
-                @input="onDateChange"
-                :min="new Date().toISOString().split('T')[0]"
-                class="absolute inset-0 w-full h-full cursor-pointer"
-                :style="{ opacity: isMobile ? 0.01 : 0, fontSize: '16px' }"
-                :tabindex="isMobile ? 0 : -1"
-              />
+            <!-- Дни недели -->
+            <div class="grid grid-cols-7 gap-1 mb-2">
+              <div v-for="day in ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']" :key="day" 
+                   class="text-center text-xs text-tg-hint font-medium py-1">
+                {{ day }}
+              </div>
+            </div>
+            
+            <!-- Дни месяца -->
+            <div class="grid grid-cols-7 gap-1">
+              <button
+                v-for="(day, idx) in calendarDays"
+                :key="idx"
+                @click="selectDay(day?.date, day?.isPast || false, day?.hasSchedule || false)"
+                :disabled="!day || day.isPast || !day.hasSchedule"
+                class="aspect-square rounded-lg text-sm font-medium transition-all relative"
+                :class="{
+                  'invisible': !day,
+                  'bg-green-500/20 text-green-600 hover:bg-green-500/30': day?.hasSchedule && !day.isSelected && !day.isPast,
+                  'bg-accent text-white': day?.isSelected,
+                  'bg-tg-secondary-bg text-tg-hint opacity-40 cursor-not-allowed': day && (!day.hasSchedule || day.isPast)
+                }"
+              >
+                <span v-if="day">{{ day.day }}</span>
+              </button>
+            </div>
+            
+            <!-- Легенда -->
+            <div class="flex gap-4 mt-4 text-xs text-tg-hint">
+              <div class="flex items-center gap-1.5">
+                <div class="w-3 h-3 rounded bg-green-500/20"></div>
+                <span>Рабочий день</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <div class="w-3 h-3 rounded bg-accent"></div>
+                <span>Выбрано</span>
+              </div>
             </div>
           </div>
           
-          <p class="text-xs text-tg-hint mt-3 capitalize">{{ formatSelectedDate }}</p>
+          <p class="text-xs text-tg-hint capitalize">Выбрано: {{ formatSelectedDate }}</p>
         </div>
 
         <!-- Time Slots -->
