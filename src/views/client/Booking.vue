@@ -27,29 +27,56 @@ const loading = ref(true);
 const loadingSlots = ref(false);
 const booking = ref(false);
 const dateInputRef = ref<HTMLInputElement | null>(null);
+const masterWorkingDates = ref<Record<string, any>>({});
 
 let mainButtonHandler: (() => void) | null = null;
 
-// Generate next 7 days for quick selection
+// Generate next 7 days for quick selection - только рабочие дни
 const nextDays = computed(() => {
   const days = [];
-  for (let i = 0; i < 7; i++) {
+  let daysAdded = 0;
+  let dayOffset = 0;
+  
+  // Ищем следующие 7 рабочих дней
+  while (daysAdded < 7 && dayOffset < 60) { // максимум 60 дней вперёд
     const date = new Date();
-    date.setDate(date.getDate() + i);
-    days.push({
-      date: date.toISOString().split('T')[0],
-      day: date.toLocaleDateString('ru-RU', { weekday: 'short' }),
-      num: date.getDate(),
-      isToday: i === 0
-    });
+    date.setDate(date.getDate() + dayOffset);
+    const dateStr: string = date.toISOString().split('T')[0] as string;
+    
+    // Проверяем есть ли этот день в рабочих днях мастера
+    if (masterWorkingDates.value[dateStr]) {
+      days.push({
+        date: dateStr,
+        day: date.toLocaleDateString('ru-RU', { weekday: 'short' }),
+        num: date.getDate(),
+        isToday: dayOffset === 0
+      });
+      daysAdded++;
+    }
+    dayOffset++;
   }
+  
   return days;
 });
 
 onMounted(async () => {
   try {
+    // Загружаем услуги
     const servicesRes = await api.get(`/public/services/${masterId}`);
     services.value = servicesRes.data.services;
+    
+    // Загружаем рабочие дни мастера
+    const masterRes = await api.get(`/public/master/${masterId}`);
+    masterWorkingDates.value = masterRes.data.masterProfile?.workingDates || {};
+    
+    // Устанавливаем первый рабочий день как выбранный по умолчанию
+    const firstWorkingDay = Object.keys(masterWorkingDates.value)
+      .filter(date => new Date(date) >= new Date(new Date().setHours(0, 0, 0, 0)))
+      .sort()[0];
+    
+    if (firstWorkingDay) {
+      selectedDate.value = firstWorkingDay;
+    }
   } catch (e) {
     console.error(e);
   } finally {
