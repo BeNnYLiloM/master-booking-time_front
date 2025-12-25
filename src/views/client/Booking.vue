@@ -97,12 +97,18 @@ const goToStep2 = () => {
 };
 
 const loadSlots = async () => {
+  if (!selectedService.value) return;
+  
   loadingSlots.value = true;
   slots.value = [];
   selectedSlot.value = null;
   try {
     const res = await api.get(`/slots`, { 
-      params: { masterId, date: selectedDate.value } 
+      params: { 
+        masterId, 
+        date: selectedDate.value,
+        serviceId: selectedService.value.id
+      } 
     });
     slots.value = res.data;
   } catch (e) {

@@ -8,7 +8,6 @@ const router = useRouter();
 const profile = ref({
   displayName: '',
   description: '',
-  slotDuration: 60,
   workingDates: {} as Record<string, { start: string; end: string }>
 });
 const services = ref<any[]>([]);
@@ -164,7 +163,6 @@ onMounted(async () => {
       profile.value = {
         displayName: profileRes.data.profile.displayName || '',
         description: profileRes.data.profile.description || '',
-        slotDuration: profileRes.data.profile.slotDuration || 60,
         workingDates: profileRes.data.profile.workingDates || {}
       };
     }
@@ -329,24 +327,6 @@ const deleteService = async (id: number) => {
         </svg>
         Заполнить Пн-Пт на 2 месяца
       </button>
-
-      <!-- Slot Duration -->
-      <div class="mb-4">
-        <label class="text-xs text-tg-hint mb-1.5 block">Длительность слота (мин)</label>
-        <div class="flex gap-2">
-          <button 
-            v-for="dur in [30, 60, 90, 120]" 
-            :key="dur"
-            @click="profile.slotDuration = dur"
-            class="flex-1 py-2.5 rounded-xl text-sm font-medium transition-all"
-            :class="profile.slotDuration === dur 
-              ? 'bg-accent text-white' 
-              : 'bg-tg-bg'"
-          >
-            {{ dur }}
-          </button>
-        </div>
-      </div>
 
       <!-- Calendar Navigation -->
       <div class="flex items-center justify-between mb-3">
