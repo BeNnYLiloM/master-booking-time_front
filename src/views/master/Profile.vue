@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 import api from '../../api';
 import WebApp from '@twa-dev/sdk';
 import { useRouter } from 'vue-router';
@@ -9,7 +9,7 @@ const profile = ref({
   displayName: '',
   description: '',
   slotDuration: 60,
-  schedule: {} as Record<number, { enabled: boolean; start: string; end: string }>
+  workingDates: {} as Record<string, { start: string; end: string }>
 });
 const services = ref<any[]>([]);
 const newService = ref({ title: '', price: 0, duration: 60, currency: 'RUB' });
@@ -17,21 +17,138 @@ const loading = ref(true);
 const saving = ref(false);
 const showAddService = ref(false);
 
-const weekDays = [
-  { id: 1, name: 'Понедельник', short: 'Пн' },
-  { id: 2, name: 'Вторник', short: 'Вт' },
-  { id: 3, name: 'Среда', short: 'Ср' },
-  { id: 4, name: 'Четверг', short: 'Чт' },
-  { id: 5, name: 'Пятница', short: 'Пт' },
-  { id: 6, name: 'Суббота', short: 'Сб' },
-  { id: 0, name: 'Воскресенье', short: 'Вс' },
-];
+// Для календаря
+const currentMonth = ref(new Date());
+const selectedDate = ref<string | null>(null);
+const showTimeModal = ref(false);
+const editingTime = ref({ start: '09:00', end: '18:00' });
 
-const toggleDay = (dayId: number) => {
-  if (!profile.value.schedule[dayId]) {
-    profile.value.schedule[dayId] = { enabled: true, start: '09:00', end: '18:00' };
+// Генерация дней месяца
+const calendarDays = computed(() => {
+  const year = currentMonth.value.getFullYear();
+  const month = currentMonth.value.getMonth();
+  
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  
+  const days = [];
+  const startPadding = (firstDay.getDay() + 6) % 7; // Понедельник = 0
+  
+  // Пустые ячейки в начале
+  for (let i = 0; i < startPadding; i++) {
+    days.push(null);
+  }
+  
+  // Дни месяца
+  for (let day = 1; day <= lastDay.getDate(); day++) {
+    const date = new Date(year, month, day);
+    const dateStr: string = date.toISOString().split('T')[0] as string;
+    const isPast = date < new Date(new Date().setHours(0, 0, 0, 0));
+    const hasSchedule = profile.value.workingDates?.[dateStr] !== undefined;
+    
+    days.push({
+      date: dateStr,
+      day: day,
+      isPast,
+      hasSchedule
+    });
+  }
+  
+  return days;
+});
+
+const monthName = computed(() => {
+  return currentMonth.value.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+});
+
+const prevMonth = () => {
+  currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() - 1);
+};
+
+const nextMonth = () => {
+  currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() + 1);
+};
+
+const selectDate = (dateStr: string, isPast: boolean) => {
+  if (isPast) return;
+  
+  selectedDate.value = dateStr;
+  
+  // Если уже есть расписание - редактируем, если нет - дефолт
+  if (profile.value.workingDates[dateStr]) {
+    editingTime.value = { ...profile.value.workingDates[dateStr] };
   } else {
-    profile.value.schedule[dayId].enabled = !profile.value.schedule[dayId].enabled;
+    editingTime.value = { start: '09:00', end: '18:00' };
+  }
+  
+  showTimeModal.value = true;
+};
+
+const saveTime = () => {
+  if (!selectedDate.value) return;
+  
+  profile.value.workingDates = {
+    ...profile.value.workingDates,
+    [selectedDate.value]: { ...editingTime.value }
+  };
+  showTimeModal.value = false;
+  
+  try {
+    WebApp.HapticFeedback.notificationOccurred('success');
+  } catch {}
+};
+
+const removeDate = () => {
+  if (!selectedDate.value) return;
+  
+  const newDates = { ...profile.value.workingDates };
+  delete newDates[selectedDate.value];
+  profile.value.workingDates = newDates;
+  showTimeModal.value = false;
+  
+  try {
+    WebApp.HapticFeedback.notificationOccurred('warning');
+  } catch {}
+};
+
+const closeModal = () => {
+  showTimeModal.value = false;
+  selectedDate.value = null;
+};
+
+// Массовое заполнение
+const fillWeekdays = () => {
+  const confirmed = confirm('Заполнить все будние дни (Пн-Пт) на 2 месяца вперёд расписанием 09:00-18:00?');
+  if (!confirmed) return;
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const endDate = new Date(today);
+  endDate.setMonth(endDate.getMonth() + 2);
+  
+  let count = 0;
+  const newDates = { ...profile.value.workingDates };
+  
+  for (let d = new Date(today); d <= endDate; d.setDate(d.getDate() + 1)) {
+    const dayOfWeek = d.getDay();
+    // Пн-Пт (1-5)
+    if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+      const dateStr: string = d.toISOString().split('T')[0] as string;
+      if (newDates[dateStr] === undefined) {
+        newDates[dateStr] = { start: '09:00', end: '18:00' };
+        count++;
+      }
+    }
+  }
+  
+  profile.value.workingDates = newDates;
+  
+  try {
+    WebApp.showAlert(`Добавлено рабочих дней: ${count}`);
+    WebApp.HapticFeedback.notificationOccurred('success');
+  } catch {
+    alert(`Добавлено рабочих дней: ${count}`);
   }
 };
 
@@ -45,24 +162,12 @@ onMounted(async () => {
     // Загружаем профиль
     const profileRes = await api.get('/master/profile');
     if (profileRes.data) {
-      // Если есть старый формат, инициализируем schedule
-      if (!profileRes.data.schedule) {
-        const defaultSchedule: any = {};
-        for (let i = 0; i < 7; i++) {
-          defaultSchedule[i] = {
-            enabled: i >= 1 && i <= 5,
-            start: '09:00',
-            end: '18:00'
-          };
-        }
-        profile.value.schedule = defaultSchedule;
-      } else {
-        profile.value = { ...profile.value, ...profileRes.data };
-      }
-      
-      profile.value.displayName = profileRes.data.displayName || '';
-      profile.value.description = profileRes.data.description || '';
-      profile.value.slotDuration = profileRes.data.slotDuration || 60;
+      profile.value = {
+        displayName: profileRes.data.displayName || '',
+        description: profileRes.data.description || '',
+        slotDuration: profileRes.data.slotDuration || 60,
+        workingDates: profileRes.data.workingDates || {}
+      };
     }
     
     // Загружаем услуги
@@ -193,16 +298,24 @@ const deleteService = async (id: number) => {
 
     <!-- Schedule Section -->
     <div class="card mb-4">
-      <div class="flex items-center gap-3 mb-4">
-        <div class="w-10 h-10 rounded-xl bg-accent/15 flex items-center justify-center">
-          <svg class="w-5 h-5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-accent/15 flex items-center justify-center">
+            <svg class="w-5 h-5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <div>
+            <h2 class="font-semibold">График работы</h2>
+            <p class="text-xs text-tg-hint">Выберите рабочие дни</p>
+          </div>
         </div>
-        <div>
-          <h2 class="font-semibold">Расписание</h2>
-          <p class="text-xs text-tg-hint">Рабочие часы для каждого дня</p>
-        </div>
+        <button 
+          @click="fillWeekdays"
+          class="text-xs btn bg-accent/15 text-accent py-2 px-3"
+        >
+          Заполнить Пн-Пт
+        </button>
       </div>
 
       <!-- Slot Duration -->
@@ -223,55 +336,64 @@ const deleteService = async (id: number) => {
         </div>
       </div>
 
-      <!-- Days Schedule -->
-      <div class="space-y-3">
-        <div 
-          v-for="day in weekDays" 
-          :key="day.id"
-          class="p-3 rounded-xl bg-tg-bg"
-        >
-          <div class="flex items-center justify-between mb-2">
-            <span class="font-medium">{{ day.name }}</span>
-            <button
-              @click="toggleDay(day.id)"
-              class="relative w-12 h-6 rounded-full transition-colors"
-              :class="profile.schedule[day.id]?.enabled ? 'bg-accent' : 'bg-tg-hint/20'"
-            >
-              <div 
-                class="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform"
-                :class="{ 'translate-x-6': profile.schedule[day.id]?.enabled }"
-              ></div>
-            </button>
+      <!-- Calendar Navigation -->
+      <div class="flex items-center justify-between mb-3">
+        <button @click="prevMonth" class="w-8 h-8 rounded-lg bg-tg-bg flex items-center justify-center">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+        <span class="font-semibold capitalize">{{ monthName }}</span>
+        <button @click="nextMonth" class="w-8 h-8 rounded-lg bg-tg-bg flex items-center justify-center">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Calendar Grid -->
+      <div class="mb-4">
+        <div class="grid grid-cols-7 gap-1 mb-2">
+          <div v-for="day in ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']" :key="day" 
+               class="text-xs text-center text-tg-hint font-medium py-1">
+            {{ day }}
           </div>
-          
-          <div 
-            v-if="profile.schedule[day.id]?.enabled" 
-            class="grid grid-cols-2 gap-2 mt-2"
+        </div>
+        <div class="grid grid-cols-7 gap-1">
+          <button
+            v-for="(day, idx) in calendarDays"
+            :key="idx"
+            @click="day && !day.isPast && day.date ? selectDate(day.date, day.isPast) : null"
+            :disabled="!day || day.isPast"
+            class="aspect-square rounded-lg text-sm font-medium transition-all"
+            :class="{
+              'bg-tg-bg': day && !day.isPast && !day.hasSchedule,
+              'bg-success/15 text-success': day && day.hasSchedule,
+              'opacity-30': day && day.isPast,
+              'invisible': !day
+            }"
           >
-            <div>
-              <label class="text-xs text-tg-hint mb-1 block">Начало</label>
-              <input 
-                type="time"
-                v-model="profile.schedule[day.id]!.start"
-                class="w-full p-2 rounded-lg text-sm bg-tg-secondary-bg"
-              />
-            </div>
-            <div>
-              <label class="text-xs text-tg-hint mb-1 block">Конец</label>
-              <input 
-                type="time"
-                v-model="profile.schedule[day.id]!.end"
-                class="w-full p-2 rounded-lg text-sm bg-tg-secondary-bg"
-              />
-            </div>
-          </div>
+            {{ day?.day }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Legend -->
+      <div class="flex items-center gap-4 mb-4 text-xs">
+        <div class="flex items-center gap-1.5">
+          <div class="w-4 h-4 rounded bg-success/15"></div>
+          <span class="text-tg-hint">Рабочий день</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <div class="w-4 h-4 rounded bg-tg-bg"></div>
+          <span class="text-tg-hint">Выходной</span>
         </div>
       </div>
 
       <button 
         @click="saveProfile" 
         :disabled="saving"
-        class="w-full btn btn-primary mt-4"
+        class="w-full btn btn-primary"
       >
         <svg v-if="saving" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -280,6 +402,53 @@ const deleteService = async (id: number) => {
         {{ saving ? 'Сохранение...' : 'Сохранить настройки' }}
       </button>
     </div>
+
+    <!-- Time Modal -->
+    <transition name="fade">
+      <div v-if="showTimeModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" @click.self="closeModal">
+        <div class="bg-tg-bg rounded-2xl p-6 max-w-sm w-full animate-scale-in">
+          <h3 class="text-lg font-bold mb-4">Рабочее время</h3>
+          <p class="text-sm text-tg-hint mb-4">
+            {{ selectedDate ? new Date(selectedDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' }) : '' }}
+          </p>
+          
+          <div class="space-y-3 mb-6">
+            <div>
+              <label class="text-sm text-tg-hint mb-1.5 block">Начало</label>
+              <input 
+                type="time"
+                v-model="editingTime.start"
+                class="w-full p-3 rounded-xl bg-tg-secondary-bg text-center text-lg font-semibold"
+              />
+            </div>
+            <div>
+              <label class="text-sm text-tg-hint mb-1.5 block">Конец</label>
+              <input 
+                type="time"
+                v-model="editingTime.end"
+                class="w-full p-3 rounded-xl bg-tg-secondary-bg text-center text-lg font-semibold"
+              />
+            </div>
+          </div>
+          
+          <div class="flex gap-2">
+            <button 
+              v-if="selectedDate && profile.workingDates[selectedDate]"
+              @click="removeDate"
+              class="flex-1 btn bg-danger/15 text-danger"
+            >
+              Удалить
+            </button>
+            <button @click="closeModal" class="flex-1 btn bg-tg-secondary-bg">
+              Отмена
+            </button>
+            <button @click="saveTime" class="flex-1 btn btn-primary">
+              Сохранить
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
 
     <!-- Services Section -->
     <div class="card">
@@ -392,5 +561,30 @@ const deleteService = async (id: number) => {
 .slide-leave-to {
   opacity: 0;
   transform: translateY(-8px);
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.2s ease;
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 </style>
