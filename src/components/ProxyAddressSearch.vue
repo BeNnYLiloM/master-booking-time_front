@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import api from '../api';
-import { debugHelper } from '../utils/debugHelper';
 
 interface Props {
   placeholder?: string;
@@ -43,7 +42,6 @@ watch(query, async (newQuery) => {
 const fetchSuggestions = async (text: string) => {
   try {
     loading.value = true;
-    debugHelper.log('info', 'ProxyAddressSearch: Запрос подсказок', { text });
     
     const response = await api.get('/geocode/suggest', {
       params: { text },
@@ -51,12 +49,8 @@ const fetchSuggestions = async (text: string) => {
 
     suggestions.value = response.data.results || [];
     showSuggestions.value = suggestions.value.length > 0;
-    
-    debugHelper.log('info', 'ProxyAddressSearch: Подсказки получены', { 
-      count: suggestions.value.length,
-    });
   } catch (error: any) {
-    debugHelper.log('error', 'ProxyAddressSearch: Ошибка получения подсказок', error);
+    console.error('Ошибка получения подсказок:', error);
     suggestions.value = [];
     showSuggestions.value = false;
   } finally {
@@ -68,8 +62,6 @@ const selectSuggestion = async (suggestion: any) => {
   const address = suggestion.title.text;
   query.value = address;
   showSuggestions.value = false;
-  
-  debugHelper.log('info', 'ProxyAddressSearch: Адрес выбран', { address });
 
   // Геокодируем выбранный адрес
   try {
@@ -82,10 +74,8 @@ const selectSuggestion = async (suggestion: any) => {
       address: response.data.address,
       coordinates: response.data.coordinates,
     });
-    
-    debugHelper.log('info', 'ProxyAddressSearch: Геокодирование успешно', response.data);
   } catch (error) {
-    debugHelper.log('error', 'ProxyAddressSearch: Ошибка геокодирования', error);
+    console.error('Ошибка геокодирования:', error);
   } finally {
     loading.value = false;
   }
