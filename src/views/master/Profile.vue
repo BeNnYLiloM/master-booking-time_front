@@ -25,7 +25,7 @@ const newService = ref({
   price: 0, 
   duration: 60, 
   currency: 'RUB',
-  locationType: 'at_master' as 'at_master' | 'at_client' | 'both'
+  locationType: 'at_client' as 'at_master' | 'at_client' | 'both' // По умолчанию "выезд" (всегда доступно)
 });
 const loading = ref(true);
 const saving = ref(false);
@@ -273,7 +273,7 @@ const addService = async () => {
   try {
     const res = await api.post('/master/services', newService.value);
     services.value.push(res.data.service);
-    newService.value = { title: '', price: 0, duration: 60, currency: 'RUB', locationType: 'at_master' };
+    newService.value = { title: '', price: 0, duration: 60, currency: 'RUB', locationType: 'at_client' };
     showAddService.value = false;
     try {
       WebApp.HapticFeedback.notificationOccurred('success');
@@ -639,29 +639,48 @@ const deleteService = async (id: number) => {
             </div>
           </div>
           
-          <!-- Location Type (если настроен адрес) -->
-          <div v-if="profile.location?.type && (profile.location.type === 'fixed' || profile.location.type === 'both')" class="mb-3">
+          <!-- Location Type -->
+          <div class="mb-3">
             <label class="text-xs text-tg-hint mb-2 block">Где оказывается услуга?</label>
+            
+            <!-- Если адрес НЕ настроен - показываем подсказку -->
+            <div v-if="!profile.location?.address?.text" class="p-3 bg-yellow-500/10 rounded-xl mb-2">
+              <p class="text-xs text-yellow-600">
+                💡 Укажите адрес выше, чтобы выбрать "У мастера"
+              </p>
+            </div>
+            
             <div class="space-y-2">
-              <label class="flex items-center gap-2 text-sm cursor-pointer">
+              <label 
+                :class="[
+                  'flex items-center gap-2 text-sm cursor-pointer p-2 rounded-lg transition-colors',
+                  !profile.location?.address?.text ? 'opacity-50 cursor-not-allowed' : ''
+                ]"
+              >
                 <input 
                   type="radio" 
                   v-model="newService.locationType" 
                   value="at_master"
+                  :disabled="!profile.location?.address?.text"
                   class="w-4 h-4"
                 />
-                <span>У мастера</span>
+                <span>У мастера {{ profile.location?.address?.text ? '📍' : '(настройте адрес)' }}</span>
               </label>
-              <label v-if="profile.location && ['both', 'mobile'].includes(profile.location.type)" class="flex items-center gap-2 text-sm cursor-pointer">
+              
+              <label class="flex items-center gap-2 text-sm cursor-pointer p-2 rounded-lg transition-colors">
                 <input 
                   type="radio" 
                   v-model="newService.locationType" 
                   value="at_client"
                   class="w-4 h-4"
                 />
-                <span>У клиента (выезд)</span>
+                <span>У клиента (выезд) 🚗</span>
               </label>
-              <label v-if="profile.location?.type === 'both'" class="flex items-center gap-2 text-sm cursor-pointer">
+              
+              <label 
+                v-if="profile.location?.address?.text" 
+                class="flex items-center gap-2 text-sm cursor-pointer p-2 rounded-lg transition-colors"
+              >
                 <input 
                   type="radio" 
                   v-model="newService.locationType" 
