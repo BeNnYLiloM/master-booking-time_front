@@ -23,24 +23,39 @@ const emit = defineEmits<{
 const mapContainer = ref<HTMLElement | null>(null);
 const loading = ref(true);
 const error = ref<string | null>(null);
+const debugInfo = ref<string>('Инициализация карты...');
+const ymapsLoaded = ref(false);
 let map: any = null;
 let placemark: any = null;
 
 const initMap = async () => {
-  if (!mapContainer.value) return;
+  if (!mapContainer.value) {
+    debugInfo.value = '❌ mapContainer отсутствует';
+    return;
+  }
 
   try {
+    debugInfo.value = '🔄 Загрузка Yandex Maps API для карты...';
+    
+    // Проверяем наличие API ключа
+    const apiKey = import.meta.env.VITE_YANDEX_MAPS_KEY;
+    debugInfo.value = `🔑 API ключ: ${apiKey ? '✅ Есть' : '❌ Отсутствует'}`;
+    
     // Загружаем API если еще не загружен
     await loadYandexMaps();
+    debugInfo.value = '✅ API загружен, ждем ymaps.ready()...';
+    ymapsLoaded.value = typeof window.ymaps !== 'undefined';
 
     window.ymaps.ready(() => {
       try {
+        debugInfo.value = '🗺️ Создаем карту...';
         // Создаём карту
         map = new window.ymaps.Map(mapContainer.value, {
           center: props.coordinates,
           zoom: props.zoom,
           controls: ['zoomControl', 'searchControl'],
         });
+        debugInfo.value = `✅ Карта создана! Координаты: ${props.coordinates.join(', ')}`;
 
         // Создаём маркер
         placemark = new window.ymaps.Placemark(
@@ -53,6 +68,7 @@ const initMap = async () => {
         );
 
         map.geoObjects.add(placemark);
+        debugInfo.value = '✅ Маркер добавлен на карту';
 
         // Если маркер можно перетаскивать
         if (props.draggable) {
@@ -66,8 +82,10 @@ const initMap = async () => {
               const firstGeoObject = geocoder.geoObjects.get(0);
               const address = firstGeoObject?.getAddressLine() || '';
               emit('address-changed', address);
+              debugInfo.value = `📍 Новый адрес: ${address}`;
             } catch (error) {
               console.error('Geocoding error:', error);
+              debugInfo.value = '❌ Ошибка геокодирования: ' + error;
             }
           });
         }
@@ -76,12 +94,14 @@ const initMap = async () => {
       } catch (err) {
         console.error('Map initialization error:', err);
         error.value = 'Ошибка инициализации карты';
+        debugInfo.value = '❌ Ошибка создания карты: ' + err;
         loading.value = false;
       }
     });
   } catch (err) {
     console.error('Yandex Maps loading error:', err);
     error.value = 'Не удалось загрузить карту';
+    debugInfo.value = '❌ Ошибка загрузки API: ' + err;
     loading.value = false;
   }
 };
@@ -113,16 +133,25 @@ declare global {
 </script>
 
 <template>
-  <div 
-    ref="mapContainer" 
-    class="yandex-map rounded-lg overflow-hidden relative"
-    :style="{ height: height }"
-  >
-    <div v-if="loading" class="absolute inset-0 flex items-center justify-center bg-tg-secondary-bg">
-      <div class="spinner"></div>
+  <div class="relative">
+    <div 
+      ref="mapContainer" 
+      class="yandex-map rounded-lg overflow-hidden relative"
+      :style="{ height: height }"
+    >
+      <div v-if="loading" class="absolute inset-0 flex items-center justify-center bg-tg-secondary-bg">
+        <div class="spinner"></div>
+      </div>
+      <div v-if="error" class="absolute inset-0 flex items-center justify-center bg-tg-secondary-bg">
+        <p class="text-tg-hint text-sm">{{ error }}</p>
+      </div>
     </div>
-    <div v-if="error" class="absolute inset-0 flex items-center justify-center bg-tg-secondary-bg">
-      <p class="text-tg-hint text-sm">{{ error }}</p>
+    
+    <!-- Отладочная информация -->
+    <div class="mt-2 p-2 bg-tg-bg rounded text-xs font-mono text-tg-hint">
+      <div>{{ debugInfo }}</div>
+      <div class="mt-1">window.ymaps: {{ ymapsLoaded ? '✅ Загружен' : '❌ Не загружен' }}</div>
+      <div>Координаты: {{ coordinates.join(', ') }}</div>
     </div>
   </div>
 </template>

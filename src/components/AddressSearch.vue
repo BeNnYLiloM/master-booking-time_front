@@ -19,22 +19,38 @@ const emit = defineEmits<{
 const inputRef = ref<HTMLInputElement | null>(null);
 const loading = ref(false);
 const error = ref<string | null>(null);
+const debugInfo = ref<string>('Инициализация...');
+const ymapsLoaded = ref(false);
+const hasApiKey = ref(!!import.meta.env.VITE_YANDEX_MAPS_KEY);
 
 let suggestView: any = null;
 
 const initSuggest = async () => {
-  if (!inputRef.value) return;
+  if (!inputRef.value) {
+    debugInfo.value = '❌ inputRef отсутствует';
+    return;
+  }
 
   try {
+    debugInfo.value = '🔄 Загрузка Yandex Maps API...';
+    
+    // Проверяем наличие API ключа
+    const apiKey = import.meta.env.VITE_YANDEX_MAPS_KEY;
+    debugInfo.value = `🔑 API ключ: ${apiKey ? '✅ Есть (' + apiKey.substring(0, 10) + '...)' : '❌ Отсутствует'}`;
+    
     // Загружаем API если еще не загружен
     await loadYandexMaps();
+    debugInfo.value = '✅ API загружен, ждем ymaps.ready()...';
+    ymapsLoaded.value = typeof window.ymaps !== 'undefined';
 
     window.ymaps.ready(() => {
       try {
+        debugInfo.value = '🔧 Создаем SuggestView...';
         suggestView = new window.ymaps.SuggestView(inputRef.value, {
           results: 5,
           offset: [0, 5],
         });
+        debugInfo.value = '✅ SuggestView создан успешно!';
 
         // Обработка выбора подсказки
         suggestView.events.add('select', async (e: any) => {
@@ -46,15 +62,18 @@ const initSuggest = async () => {
           // Геокодирование выбранного адреса
           try {
             loading.value = true;
+            debugInfo.value = '📍 Геокодирование адреса...';
             const geocoder = await window.ymaps.geocode(address);
             const firstGeoObject = geocoder.geoObjects.get(0);
             
             if (firstGeoObject) {
               const coordinates = firstGeoObject.geometry.getCoordinates();
               emit('select', { address, coordinates });
+              debugInfo.value = `✅ Координаты: ${coordinates.join(', ')}`;
             }
           } catch (error) {
             console.error('Geocoding error:', error);
+            debugInfo.value = '❌ Ошибка геокодирования: ' + error;
           } finally {
             loading.value = false;
           }
@@ -62,11 +81,13 @@ const initSuggest = async () => {
       } catch (err) {
         console.error('Suggest initialization error:', err);
         error.value = 'Ошибка инициализации поиска';
+        debugInfo.value = '❌ Ошибка инициализации SuggestView: ' + err;
       }
     });
   } catch (err) {
     console.error('Yandex Maps loading error:', err);
     error.value = 'Не удалось загрузить поиск адресов';
+    debugInfo.value = '❌ Ошибка загрузки API: ' + err;
   }
 };
 
@@ -101,6 +122,14 @@ declare global {
     <div v-if="loading" class="absolute right-3 top-1/2 -translate-y-1/2">
       <div class="spinner-small"></div>
     </div>
+    
+    <!-- Отладочная информация -->
+    <div class="mt-2 p-2 bg-tg-bg rounded text-xs font-mono text-tg-hint">
+      <div>{{ debugInfo }}</div>
+      <div class="mt-1">window.ymaps: {{ ymapsLoaded ? '✅ Загружен' : '❌ Не загружен' }}</div>
+      <div>ENV KEY: {{ hasApiKey ? '✅ Есть' : '❌ Нет' }}</div>
+    </div>
+    
     <div v-if="error" class="mt-2 text-xs text-red-500">
       {{ error }}
     </div>
