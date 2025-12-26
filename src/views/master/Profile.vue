@@ -3,15 +3,30 @@ import { ref, onMounted, onUnmounted, computed } from 'vue';
 import api from '../../api';
 import WebApp from '@twa-dev/sdk';
 import { useRouter } from 'vue-router';
+import YandexMap from '../../components/YandexMap.vue';
+import AddressSearch from '../../components/AddressSearch.vue';
 
 const router = useRouter();
 const profile = ref({
   displayName: '',
   description: '',
-  workingDates: {} as Record<string, { start: string; end: string }>
+  workingDates: {} as Record<string, { start: string; end: string }>,
+  location: {
+    type: 'fixed' as 'fixed' | 'mobile' | 'both',
+    address: {
+      text: '',
+      coordinates: [55.751244, 37.618423] as [number, number] // Москва по умолчанию
+    }
+  }
 });
 const services = ref<any[]>([]);
-const newService = ref({ title: '', price: 0, duration: 60, currency: 'RUB' });
+const newService = ref({ 
+  title: '', 
+  price: 0, 
+  duration: 60, 
+  currency: 'RUB',
+  locationType: 'at_master' as 'at_master' | 'at_client' | 'both'
+});
 const loading = ref(true);
 const saving = ref(false);
 const showAddService = ref(false);
@@ -20,6 +35,11 @@ const showAddService = ref(false);
 const currentMonth = ref(new Date());
 const selectedDates = ref<Set<string>>(new Set());
 const workingTime = ref({ start: '09:00', end: '18:00' });
+
+// Для карты
+const showMap = ref(false);
+const addressInput = ref('');
+const mapCoordinates = ref<[number, number]>([55.751244, 37.618423]);
 
 // Генерация дней месяца
 const calendarDays = computed(() => {
@@ -163,8 +183,21 @@ onMounted(async () => {
       profile.value = {
         displayName: profileRes.data.profile.displayName || '',
         description: profileRes.data.profile.description || '',
-        workingDates: profileRes.data.profile.workingDates || {}
+        workingDates: profileRes.data.profile.workingDates || {},
+        location: profileRes.data.profile.location || {
+          type: 'fixed',
+          address: {
+            text: '',
+            coordinates: [55.751244, 37.618423]
+          }
+        }
       };
+      
+      // Инициализируем карту если адрес есть
+      if (profile.value.location?.address?.text) {
+        addressInput.value = profile.value.location.address.text;
+        mapCoordinates.value = profile.value.location.address.coordinates;
+      }
     }
     
     // Загружаем услуги
@@ -182,6 +215,27 @@ onUnmounted(() => {
     WebApp.BackButton.hide();
   } catch {}
 });
+
+// Обработчики для карты и адреса
+const onAddressSelect = (data: { address: string; coordinates: [number, number] }) => {
+  addressInput.value = data.address;
+  mapCoordinates.value = data.coordinates;
+  profile.value.location!.address = {
+    text: data.address,
+    coordinates: data.coordinates
+  };
+  showMap.value = true;
+};
+
+const onMapCoordinatesUpdate = (coords: [number, number]) => {
+  mapCoordinates.value = coords;
+  profile.value.location!.address!.coordinates = coords;
+};
+
+const onMapAddressChanged = (address: string) => {
+  addressInput.value = address;
+  profile.value.location!.address!.text = address;
+};
 
 const saveProfile = async () => {
   saving.value = true;
@@ -219,7 +273,7 @@ const addService = async () => {
   try {
     const res = await api.post('/master/services', newService.value);
     services.value.push(res.data.service);
-    newService.value = { title: '', price: 0, duration: 60, currency: 'RUB' };
+    newService.value = { title: '', price: 0, duration: 60, currency: 'RUB', locationType: 'at_master' };
     showAddService.value = false;
     try {
       WebApp.HapticFeedback.notificationOccurred('success');
@@ -300,6 +354,102 @@ const deleteService = async (id: number) => {
           />
           <p class="text-xs text-tg-hint mt-1.5">Будет показано клиентам в уведомлениях</p>
         </div>
+      </div>
+    </div>
+
+    <!-- Location Section -->
+    <div class="card mb-4">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 rounded-xl bg-blue-500/15 flex items-center justify-center">
+          <svg class="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        </div>
+        <div>
+          <h2 class="font-semibold">Местоположение</h2>
+          <p class="text-xs text-tg-hint">Где вы работаете</p>
+        </div>
+      </div>
+
+      <!-- Location Type -->
+      <div class="space-y-3 mb-4">
+        <label class="text-xs text-tg-hint mb-2 block">Тип работы</label>
+        
+        <div class="space-y-2">
+          <label class="flex items-center gap-3 p-3 rounded-xl border border-tg-hint/20 cursor-pointer transition-colors"
+                 :class="profile.location?.type === 'fixed' ? 'border-accent bg-accent/5' : ''">
+            <input 
+              type="radio" 
+              v-model="profile.location!.type" 
+              value="fixed"
+              class="w-4 h-4 text-accent"
+            />
+            <div class="flex-1">
+              <div class="font-medium text-sm">Принимаю у себя</div>
+              <div class="text-xs text-tg-hint">Клиент приходит к вам</div>
+            </div>
+          </label>
+
+          <label class="flex items-center gap-3 p-3 rounded-xl border border-tg-hint/20 cursor-pointer transition-colors"
+                 :class="profile.location?.type === 'mobile' ? 'border-accent bg-accent/5' : ''">
+            <input 
+              type="radio" 
+              v-model="profile.location!.type" 
+              value="mobile"
+              class="w-4 h-4 text-accent"
+            />
+            <div class="flex-1">
+              <div class="font-medium text-sm">Выезжаю к клиенту</div>
+              <div class="text-xs text-tg-hint">Вы едете на адрес клиента</div>
+            </div>
+          </label>
+
+          <label class="flex items-center gap-3 p-3 rounded-xl border border-tg-hint/20 cursor-pointer transition-colors"
+                 :class="profile.location?.type === 'both' ? 'border-accent bg-accent/5' : ''">
+            <input 
+              type="radio" 
+              v-model="profile.location!.type" 
+              value="both"
+              class="w-4 h-4 text-accent"
+            />
+            <div class="flex-1">
+              <div class="font-medium text-sm">Оба варианта</div>
+              <div class="text-xs text-tg-hint">Можете принять и выехать</div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Address Input (if fixed or both) -->
+      <div v-if="profile.location?.type === 'fixed' || profile.location?.type === 'both'" class="space-y-3">
+        <label class="text-xs text-tg-hint mb-2 block">Ваш адрес</label>
+        
+        <AddressSearch
+          v-model="addressInput"
+          placeholder="Начните вводить адрес..."
+          @select="onAddressSelect"
+        />
+
+        <!-- Map -->
+        <div v-if="showMap || profile.location?.address?.text" class="mt-3">
+          <YandexMap
+            :coordinates="mapCoordinates"
+            :draggable="true"
+            height="250px"
+            @update:coordinates="onMapCoordinatesUpdate"
+            @address-changed="onMapAddressChanged"
+          />
+          <p class="text-xs text-tg-hint mt-2">
+            💡 Перетащите маркер для точного указания места
+          </p>
+        </div>
+      </div>
+
+      <div v-if="profile.location?.type === 'mobile'" class="p-3 bg-blue-500/10 rounded-xl">
+        <p class="text-xs text-tg-hint">
+          📍 Клиент укажет адрес при записи
+        </p>
       </div>
     </div>
 
@@ -488,6 +638,41 @@ const deleteService = async (id: number) => {
               <span class="absolute right-3 top-1/2 -translate-y-1/2 text-tg-hint text-sm">мин</span>
             </div>
           </div>
+          
+          <!-- Location Type (если настроен адрес) -->
+          <div v-if="profile.location?.type && (profile.location.type === 'fixed' || profile.location.type === 'both')" class="mb-3">
+            <label class="text-xs text-tg-hint mb-2 block">Где оказывается услуга?</label>
+            <div class="space-y-2">
+              <label class="flex items-center gap-2 text-sm cursor-pointer">
+                <input 
+                  type="radio" 
+                  v-model="newService.locationType" 
+                  value="at_master"
+                  class="w-4 h-4"
+                />
+                <span>У мастера</span>
+              </label>
+              <label v-if="profile.location && ['both', 'mobile'].includes(profile.location.type)" class="flex items-center gap-2 text-sm cursor-pointer">
+                <input 
+                  type="radio" 
+                  v-model="newService.locationType" 
+                  value="at_client"
+                  class="w-4 h-4"
+                />
+                <span>У клиента (выезд)</span>
+              </label>
+              <label v-if="profile.location?.type === 'both'" class="flex items-center gap-2 text-sm cursor-pointer">
+                <input 
+                  type="radio" 
+                  v-model="newService.locationType" 
+                  value="both"
+                  class="w-4 h-4"
+                />
+                <span>Оба варианта</span>
+              </label>
+            </div>
+          </div>
+          
           <button 
             @click="addService" 
             :disabled="!newService.title.trim()"

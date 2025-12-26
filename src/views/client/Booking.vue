@@ -3,6 +3,8 @@ import { ref, onMounted, watch, computed, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import api from '../../api';
 import WebApp from '@twa-dev/sdk';
+import YandexMap from '../../components/YandexMap.vue';
+import AddressSearch from '../../components/AddressSearch.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -29,6 +31,13 @@ const booking = ref(false);
 const error = ref<string | null>(null);
 const masterWorkingDates = ref<Record<string, any>>({});
 const currentMonth = ref(new Date());
+const masterProfile = ref<any>(null);
+
+// Location state
+const selectedLocationType = ref<'at_master' | 'at_client' | null>(null);
+const clientAddress = ref('');
+const clientCoordinates = ref<[number, number]>([55.751244, 37.618423]);
+const showClientMap = ref(false);
 
 let mainButtonHandler: (() => void) | null = null;
 
@@ -89,9 +98,10 @@ onMounted(async () => {
     const servicesRes = await api.get(`/public/services/${masterId}`);
     services.value = servicesRes.data.services;
     
-    // Загружаем рабочие дни мастера
+    // Загружаем рабочие дни мастера и профиль
     const masterRes = await api.get(`/public/master/${masterId}`);
     masterWorkingDates.value = masterRes.data.masterProfile?.workingDates || {};
+    masterProfile.value = masterRes.data.masterProfile || null;
     
     if (Object.keys(masterWorkingDates.value).length === 0) {
       error.value = 'У мастера не настроено рабочее расписание';
@@ -117,7 +127,7 @@ onMounted(async () => {
   }
 });
 
-watch([step, selectedService, selectedSlot], () => {
+watch([step, selectedService, selectedSlot, selectedLocationType, clientAddress], () => {
   if (!isTelegram.value) return;
   
   try {
@@ -126,7 +136,7 @@ watch([step, selectedService, selectedSlot], () => {
       mainButtonHandler = null;
     }
 
-    if (step.value === 1 && selectedService.value) {
+    if (step.value === 1 && canGoToTimeSelection.value) {
       mainButtonHandler = goToStep2;
       WebApp.MainButton.setText('Выбрать время →');
       WebApp.MainButton.onClick(mainButtonHandler);
@@ -151,9 +161,44 @@ onUnmounted(() => {
   }
 });
 
+// Проверка может ли клиент перейти к выбору времени
+const canGoToTimeSelection = computed(() => {
+  if (!selectedService.value) return false;
+  
+  // Если услуга 'both' - нужен выбор места
+  if (selectedService.value.locationType === 'both') {
+    if (!selectedLocationType.value) return false;
+    // Если выбран 'at_client' - нужен адрес
+    if (selectedLocationType.value === 'at_client' && !clientAddress.value.trim()) return false;
+  }
+  
+  // Если услуга 'at_client' - нужен адрес
+  if (selectedService.value.locationType === 'at_client' && !clientAddress.value.trim()) {
+    return false;
+  }
+  
+  return true;
+});
+
 const goToStep2 = () => {
+  if (!canGoToTimeSelection.value) return;
   step.value = 2;
   loadSlots();
+};
+
+// Обработчики для карты клиента
+const onClientAddressSelect = (data: { address: string; coordinates: [number, number] }) => {
+  clientAddress.value = data.address;
+  clientCoordinates.value = data.coordinates;
+  showClientMap.value = true;
+};
+
+const onClientMapCoordinatesUpdate = (coords: [number, number]) => {
+  clientCoordinates.value = coords;
+};
+
+const onClientMapAddressChanged = (address: string) => {
+  clientAddress.value = address;
 };
 
 const loadSlots = async () => {
@@ -188,12 +233,26 @@ const bookAppointment = async () => {
   }
   
   try {
-    await api.post('/appointments', {
+    const bookingData: any = {
       masterId: Number(masterId),
       serviceId: selectedService.value.id,
       dateStr: selectedDate.value,
       timeStr: selectedSlot.value
-    });
+    };
+    
+    // Добавляем информацию о локации
+    const finalLocationType = selectedLocationType.value || selectedService.value.locationType;
+    bookingData.locationType = finalLocationType;
+    
+    // Если услуга у клиента - передаем адрес
+    if (finalLocationType === 'at_client') {
+      bookingData.address = {
+        text: clientAddress.value,
+        coordinates: clientCoordinates.value
+      };
+    }
+    
+    await api.post('/appointments', bookingData);
     step.value = 3;
     
     if (isTelegram.value) {
@@ -213,6 +272,16 @@ const bookAppointment = async () => {
 
 const selectService = (s: any) => {
   selectedService.value = s;
+  
+  // Определяем нужен ли выбор места
+  if (s.locationType === 'both') {
+    // Нужен выбор места - переходим к Step 1.5
+    selectedLocationType.value = null;
+  } else {
+    // Автоматически устанавливаем locationType
+    selectedLocationType.value = s.locationType;
+  }
+  
   if (isTelegram.value) {
     try { WebApp.HapticFeedback.selectionChanged(); } catch {}
   }
@@ -315,9 +384,75 @@ const formatSelectedDate = computed(() => {
           </button>
         </div>
 
+        <!-- Location Selection (if service is 'both') -->
+        <div v-if="selectedService && selectedService.locationType === 'both'" class="mt-6 card">
+          <h3 class="font-semibold mb-3">Где хотите получить услугу?</h3>
+          
+          <div class="space-y-2">
+            <label 
+              class="flex items-start gap-3 p-3 rounded-xl border border-tg-hint/20 cursor-pointer transition-colors"
+              :class="selectedLocationType === 'at_master' ? 'border-accent bg-accent/5' : ''"
+            >
+              <input 
+                type="radio" 
+                v-model="selectedLocationType" 
+                value="at_master"
+                class="w-4 h-4 mt-0.5"
+              />
+              <div class="flex-1">
+                <div class="font-medium text-sm">У мастера</div>
+                <div v-if="masterProfile?.location?.address?.text" class="text-xs text-tg-hint mt-1">
+                  📍 {{ masterProfile.location.address.text }}
+                </div>
+              </div>
+            </label>
+
+            <label 
+              class="flex items-start gap-3 p-3 rounded-xl border border-tg-hint/20 cursor-pointer transition-colors"
+              :class="selectedLocationType === 'at_client' ? 'border-accent bg-accent/5' : ''"
+            >
+              <input 
+                type="radio" 
+                v-model="selectedLocationType" 
+                value="at_client"
+                class="w-4 h-4 mt-0.5"
+              />
+              <div class="flex-1">
+                <div class="font-medium text-sm">Вызвать к себе</div>
+                <div class="text-xs text-tg-hint mt-1">Мастер приедет к вам</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Client Address Input (if 'at_client' selected or service is 'at_client') -->
+        <div v-if="selectedService && (selectedLocationType === 'at_client' || selectedService.locationType === 'at_client')" class="mt-4 card">
+          <h3 class="font-semibold mb-3">Ваш адрес</h3>
+          
+          <AddressSearch
+            v-model="clientAddress"
+            placeholder="Начните вводить адрес..."
+            @select="onClientAddressSelect"
+          />
+
+          <!-- Client Map -->
+          <div v-if="showClientMap || clientAddress" class="mt-3">
+            <YandexMap
+              :coordinates="clientCoordinates"
+              :draggable="true"
+              height="200px"
+              @update:coordinates="onClientMapCoordinatesUpdate"
+              @address-changed="onClientMapAddressChanged"
+            />
+            <p class="text-xs text-tg-hint mt-2">
+              💡 Перетащите маркер для точного указания места
+            </p>
+          </div>
+        </div>
+
         <!-- Browser Button -->
         <button 
-          v-if="selectedService && !isTelegram"
+          v-if="canGoToTimeSelection && !isTelegram"
           @click="goToStep2"
           class="fixed bottom-4 left-4 right-4 btn btn-primary text-lg py-4"
         >
