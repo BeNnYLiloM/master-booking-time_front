@@ -426,7 +426,6 @@ const deleteService = async (id: number) => {
         <label class="text-xs text-tg-hint mb-2 block">Ваш адрес</label>
         
         <AddressSearch
-          v-model="addressInput"
           placeholder="Начните вводить адрес..."
           @select="onAddressSelect"
         />

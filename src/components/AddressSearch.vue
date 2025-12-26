@@ -4,7 +4,6 @@ import { loadYandexMaps } from '../utils/yandexMaps';
 import { debugHelper } from '../utils/debugHelper';
 
 interface Props {
-  modelValue: string;
   placeholder?: string;
 }
 
@@ -13,7 +12,6 @@ withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<{
-  'update:modelValue': [string];
   'select': [{ address: string; coordinates: [number, number] }];
 }>();
 
@@ -72,7 +70,6 @@ const initSuggest = async () => {
           const address = selectedItem.value;
           
           debugHelper.log('info', 'AddressSearch: Адрес выбран', { address });
-          emit('update:modelValue', address);
 
           // Геокодирование выбранного адреса
           try {
@@ -95,6 +92,8 @@ const initSuggest = async () => {
             loading.value = false;
           }
         });
+        
+        debugHelper.log('info', 'AddressSearch: Event listener для select добавлен');
       } catch (err) {
         console.error('Suggest initialization error:', err);
         error.value = 'Ошибка инициализации поиска';
@@ -108,11 +107,6 @@ const initSuggest = async () => {
     debugInfo.value = '❌ Ошибка загрузки API: ' + err;
     debugHelper.log('error', 'AddressSearch: Ошибка загрузки API', err);
   }
-};
-
-const onInput = (event: Event) => {
-  const value = (event.target as HTMLInputElement).value;
-  emit('update:modelValue', value);
 };
 
 onMounted(() => {
@@ -137,8 +131,6 @@ declare global {
     <input
       ref="inputRef"
       type="text"
-      :value="modelValue"
-      @input="onInput"
       :placeholder="placeholder"
       :disabled="!!error"
       class="w-full px-4 py-3 rounded-lg bg-tg-secondary-bg text-tg-text border border-tg-hint/20 focus:border-accent focus:outline-none transition-colors disabled:opacity-50"
