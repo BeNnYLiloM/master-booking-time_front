@@ -430,6 +430,7 @@ const formatSelectedDate = computed(() => {
           <h3 class="font-semibold mb-3">Ваш адрес</h3>
           
           <ProxyAddressSearch
+            v-model="clientAddress"
             placeholder="Начните вводить адрес..."
             @select="onClientAddressSelect"
           />

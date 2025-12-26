@@ -1,17 +1,20 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, onMounted } from 'vue';
 import api from '../api';
 
 interface Props {
   placeholder?: string;
+  modelValue?: string; // Начальное значение адреса
 }
 
-withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Props>(), {
   placeholder: 'Введите адрес',
+  modelValue: '',
 });
 
 const emit = defineEmits<{
   'select': [{ address: string; coordinates: [number, number] }];
+  'update:modelValue': [string]; // Для двусторонней привязки
 }>();
 
 const query = ref('');
@@ -20,10 +23,27 @@ const loading = ref(false);
 const showSuggestions = ref(false);
 const selectedIndex = ref(-1);
 
+// Инициализируем query из props
+onMounted(() => {
+  if (props.modelValue) {
+    query.value = props.modelValue;
+  }
+});
+
+// Следим за изменениями modelValue извне
+watch(() => props.modelValue, (newValue) => {
+  if (newValue !== query.value) {
+    query.value = newValue;
+  }
+});
+
 // Дебаунс для запроса подсказок
 let debounceTimer: number | null = null;
 
 watch(query, async (newQuery) => {
+  // Эмитим изменение наружу
+  emit('update:modelValue', newQuery);
+  
   if (debounceTimer) {
     clearTimeout(debounceTimer);
   }
