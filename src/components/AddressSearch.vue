@@ -21,6 +21,7 @@ const error = ref<string | null>(null);
 const debugInfo = ref<string>('Инициализация...');
 const ymapsLoaded = ref(false);
 const hasApiKey = ref(!!import.meta.env.VITE_YANDEX_MAPS_KEY);
+const suggestState = ref<string>('Не создан');
 
 let suggestView: any = null;
 
@@ -61,8 +62,16 @@ const initSuggest = async () => {
           offset: [0, 5],
         });
         
+        suggestState.value = 'Создан';
         debugInfo.value = '✅ SuggestView создан успешно!';
-        debugHelper.log('info', 'AddressSearch: SuggestView создан успешно');
+        debugHelper.log('info', 'AddressSearch: SuggestView создан успешно', { suggestView });
+
+        // Проверяем что SuggestView действительно прикреплен к инпуту
+        debugHelper.log('info', 'AddressSearch: Проверка привязки', {
+          hasInput: !!inputRef.value,
+          inputId: inputRef.value?.id,
+          suggestViewState: suggestView.state?.get('state'),
+        });
 
         // Обработка выбора подсказки
         suggestView.events.add('select', async (e: any) => {
@@ -93,6 +102,7 @@ const initSuggest = async () => {
           }
         });
         
+        suggestState.value = 'Event listener добавлен';
         debugHelper.log('info', 'AddressSearch: Event listener для select добавлен');
       } catch (err) {
         console.error('Suggest initialization error:', err);
@@ -117,6 +127,25 @@ onMounted(() => {
 const recentLogs = computed(() => {
   return debugHelper.getLogs().slice(0, 5);
 });
+
+const testSuggest = async () => {
+  if (!suggestView) {
+    debugHelper.log('error', 'AddressSearch: suggestView не создан');
+    return;
+  }
+  
+  try {
+    debugHelper.log('info', 'AddressSearch: Тестовый запрос подсказок для "Москва"');
+    
+    // Пробуем получить подсказки напрямую через API
+    const suggests = await window.ymaps.suggest('Москва');
+    debugHelper.log('info', 'AddressSearch: Подсказки получены', { count: suggests.length, first: suggests[0] });
+    suggestState.value = `Работает! Найдено: ${suggests.length}`;
+  } catch (err) {
+    debugHelper.log('error', 'AddressSearch: Ошибка тестового запроса', err);
+    suggestState.value = 'Ошибка при тесте';
+  }
+};
 
 // Глобальный тип для window.ymaps
 declare global {
@@ -145,6 +174,15 @@ declare global {
       <div>{{ debugInfo }}</div>
       <div class="mt-1">window.ymaps: {{ ymapsLoaded ? '✅ Загружен' : '❌ Не загружен' }}</div>
       <div>ENV KEY: {{ hasApiKey ? '✅ Есть' : '❌ Нет' }}</div>
+      <div>SuggestView: {{ suggestState }}</div>
+      
+      <button 
+        v-if="ymapsLoaded" 
+        @click="testSuggest"
+        class="mt-2 px-3 py-1 bg-blue-500 text-white rounded text-xs"
+      >
+        🧪 Тест подсказок
+      </button>
       
       <div class="font-bold mt-2 mb-1">Последние логи:</div>
       <div v-for="(log, idx) in recentLogs" :key="idx" class="text-[10px] leading-tight">
