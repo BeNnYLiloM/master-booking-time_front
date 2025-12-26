@@ -22,10 +22,12 @@ const suggestions = ref<any[]>([]);
 const loading = ref(false);
 const showSuggestions = ref(false);
 const selectedIndex = ref(-1);
+const skipSuggest = ref(false); // Флаг для пропуска запроса подсказок
 
 // Инициализируем query из props
 onMounted(() => {
   if (props.modelValue) {
+    skipSuggest.value = true; // Не запрашиваем подсказки при инициализации
     query.value = props.modelValue;
   }
 });
@@ -33,6 +35,7 @@ onMounted(() => {
 // Следим за изменениями modelValue извне
 watch(() => props.modelValue, (newValue) => {
   if (newValue !== query.value) {
+    skipSuggest.value = true; // Не запрашиваем подсказки при изменении извне
     query.value = newValue;
   }
 });
@@ -43,6 +46,12 @@ let debounceTimer: number | null = null;
 watch(query, async (newQuery) => {
   // Эмитим изменение наружу
   emit('update:modelValue', newQuery);
+  
+  // Если флаг установлен, пропускаем запрос подсказок
+  if (skipSuggest.value) {
+    skipSuggest.value = false;
+    return;
+  }
   
   if (debounceTimer) {
     clearTimeout(debounceTimer);
@@ -80,6 +89,8 @@ const fetchSuggestions = async (text: string) => {
 
 const selectSuggestion = async (suggestion: any) => {
   const address = suggestion.title.text;
+  
+  skipSuggest.value = true; // Не запрашиваем подсказки при выборе из списка
   query.value = address;
   showSuggestions.value = false;
 
@@ -157,8 +168,10 @@ const handleBlur = () => {
         }"
         class="px-4 py-2.5 cursor-pointer transition-colors text-sm"
       >
-        <div class="font-medium">{{ suggestion.title.text }}</div>
-        <div v-if="suggestion.subtitle" class="text-xs opacity-70 mt-0.5">
+        <div class="font-medium break-words whitespace-normal leading-snug">
+          {{ suggestion.title.text }}
+        </div>
+        <div v-if="suggestion.subtitle" class="text-xs opacity-70 mt-0.5 break-words whitespace-normal">
           {{ suggestion.subtitle.text }}
         </div>
       </div>
