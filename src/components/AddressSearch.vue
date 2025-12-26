@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { loadYandexMaps } from '../utils/yandexMaps';
+import { debugHelper } from '../utils/debugHelper';
 
 interface Props {
   modelValue: string;
@@ -28,35 +29,49 @@ let suggestView: any = null;
 const initSuggest = async () => {
   if (!inputRef.value) {
     debugInfo.value = '❌ inputRef отсутствует';
+    debugHelper.log('error', 'AddressSearch: inputRef отсутствует');
     return;
   }
 
   try {
     debugInfo.value = '🔄 Загрузка Yandex Maps API...';
+    debugHelper.log('info', 'AddressSearch: Начинаем загрузку Yandex Maps API');
     
     // Проверяем наличие API ключа
     const apiKey = import.meta.env.VITE_YANDEX_MAPS_KEY;
     debugInfo.value = `🔑 API ключ: ${apiKey ? '✅ Есть (' + apiKey.substring(0, 10) + '...)' : '❌ Отсутствует'}`;
+    debugHelper.log('info', 'AddressSearch: API ключ', { hasKey: !!apiKey });
     
     // Загружаем API если еще не загружен
     await loadYandexMaps();
     debugInfo.value = '✅ API загружен, ждем ymaps.ready()...';
     ymapsLoaded.value = typeof window.ymaps !== 'undefined';
+    
+    debugHelper.log('info', 'AddressSearch: API загружен', { ymapsExists: ymapsLoaded.value });
+
+    if (!window.ymaps) {
+      throw new Error('window.ymaps не определен после загрузки');
+    }
 
     window.ymaps.ready(() => {
       try {
         debugInfo.value = '🔧 Создаем SuggestView...';
+        debugHelper.log('info', 'AddressSearch: ymaps.ready() вызван, создаем SuggestView');
+        
         suggestView = new window.ymaps.SuggestView(inputRef.value, {
           results: 5,
           offset: [0, 5],
         });
+        
         debugInfo.value = '✅ SuggestView создан успешно!';
+        debugHelper.log('info', 'AddressSearch: SuggestView создан успешно');
 
         // Обработка выбора подсказки
         suggestView.events.add('select', async (e: any) => {
           const selectedItem = e.get('item');
           const address = selectedItem.value;
           
+          debugHelper.log('info', 'AddressSearch: Адрес выбран', { address });
           emit('update:modelValue', address);
 
           // Геокодирование выбранного адреса
@@ -70,10 +85,12 @@ const initSuggest = async () => {
               const coordinates = firstGeoObject.geometry.getCoordinates();
               emit('select', { address, coordinates });
               debugInfo.value = `✅ Координаты: ${coordinates.join(', ')}`;
+              debugHelper.log('info', 'AddressSearch: Геокодирование успешно', { address, coordinates });
             }
           } catch (error) {
             console.error('Geocoding error:', error);
             debugInfo.value = '❌ Ошибка геокодирования: ' + error;
+            debugHelper.log('error', 'AddressSearch: Ошибка геокодирования', error);
           } finally {
             loading.value = false;
           }
@@ -82,12 +99,14 @@ const initSuggest = async () => {
         console.error('Suggest initialization error:', err);
         error.value = 'Ошибка инициализации поиска';
         debugInfo.value = '❌ Ошибка инициализации SuggestView: ' + err;
+        debugHelper.log('error', 'AddressSearch: Ошибка инициализации SuggestView', err);
       }
     });
   } catch (err) {
     console.error('Yandex Maps loading error:', err);
     error.value = 'Не удалось загрузить поиск адресов';
     debugInfo.value = '❌ Ошибка загрузки API: ' + err;
+    debugHelper.log('error', 'AddressSearch: Ошибка загрузки API', err);
   }
 };
 
@@ -97,7 +116,12 @@ const onInput = (event: Event) => {
 };
 
 onMounted(() => {
+  debugHelper.log('info', 'AddressSearch: Компонент смонтирован');
   initSuggest();
+});
+
+const recentLogs = computed(() => {
+  return debugHelper.getLogs().slice(0, 5);
 });
 
 // Глобальный тип для window.ymaps
@@ -125,9 +149,22 @@ declare global {
     
     <!-- Отладочная информация -->
     <div class="mt-2 p-2 bg-tg-bg rounded text-xs font-mono text-tg-hint">
+      <div class="font-bold mb-1">Статус:</div>
       <div>{{ debugInfo }}</div>
       <div class="mt-1">window.ymaps: {{ ymapsLoaded ? '✅ Загружен' : '❌ Не загружен' }}</div>
       <div>ENV KEY: {{ hasApiKey ? '✅ Есть' : '❌ Нет' }}</div>
+      
+      <div class="font-bold mt-2 mb-1">Последние логи:</div>
+      <div v-for="(log, idx) in recentLogs" :key="idx" class="text-[10px] leading-tight">
+        <span :class="{
+          'text-blue-400': log.level === 'info',
+          'text-yellow-400': log.level === 'warn',
+          'text-red-400': log.level === 'error'
+        }">
+          [{{ log.timestamp.toLocaleTimeString() }}]
+        </span>
+        {{ log.message }}
+      </div>
     </div>
     
     <div v-if="error" class="mt-2 text-xs text-red-500">
