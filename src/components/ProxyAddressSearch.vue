@@ -139,17 +139,18 @@ const handleBlur = () => {
 
 <template>
   <div class="proxy-address-search relative">
-    <input
+    <!-- Textarea вместо input для многострочного адреса -->
+    <textarea
       v-model="query"
-      type="text"
       :placeholder="placeholder"
       @keydown="handleKeydown"
       @focus="showSuggestions = suggestions.length > 0"
       @blur="handleBlur"
-      class="w-full px-4 py-3 rounded-lg bg-tg-secondary-bg text-tg-text border border-tg-hint/20 focus:border-accent focus:outline-none transition-colors"
-    />
+      rows="2"
+      class="w-full px-4 py-3 rounded-lg bg-tg-secondary-bg text-tg-text border border-tg-hint/20 focus:border-accent focus:outline-none transition-colors resize-none"
+    ></textarea>
     
-    <div v-if="loading" class="absolute right-3 top-1/2 -translate-y-1/2">
+    <div v-if="loading" class="absolute right-3 top-3">
       <div class="spinner-small"></div>
     </div>
 
