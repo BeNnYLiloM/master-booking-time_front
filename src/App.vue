@@ -1,9 +1,15 @@
 <script setup lang="ts">
 import { RouterView, useRouter } from 'vue-router';
-import { onMounted } from 'vue';
+import { onMounted, computed } from 'vue';
 import WebApp from '@twa-dev/sdk';
+import DebugPanel from './components/DebugPanel.vue';
 
 const router = useRouter();
+
+// Показывать debug панель в dev или если есть ?debug=true
+const showDebug = computed(() => {
+  return import.meta.env.DEV || window.location.search.includes('debug=true');
+});
 
 onMounted(() => {
   try {
@@ -54,6 +60,9 @@ onMounted(() => {
         <component :is="Component" />
       </transition>
     </RouterView>
+    
+    <!-- Debug Panel - только в dev режиме или если в URL есть ?debug=true -->
+    <DebugPanel v-if="showDebug" />
   </div>
 </template>
 
