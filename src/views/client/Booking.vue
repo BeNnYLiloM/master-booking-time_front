@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import api from '../../api';
 import WebApp from '@twa-dev/sdk';
 import YandexMap from '../../components/YandexMap.vue';
-import AddressSearch from '../../components/AddressSearch.vue';
+import ProxyAddressSearch from '../../components/ProxyAddressSearch.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -429,7 +429,7 @@ const formatSelectedDate = computed(() => {
         <div v-if="selectedService && (selectedLocationType === 'at_client' || selectedService.locationType === 'at_client')" class="mt-4 card">
           <h3 class="font-semibold mb-3">Ваш адрес</h3>
           
-          <AddressSearch
+          <ProxyAddressSearch
             placeholder="Начните вводить адрес..."
             @select="onClientAddressSelect"
           />

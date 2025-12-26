@@ -4,7 +4,7 @@ import api from '../../api';
 import WebApp from '@twa-dev/sdk';
 import { useRouter } from 'vue-router';
 import YandexMap from '../../components/YandexMap.vue';
-import AddressSearch from '../../components/AddressSearch.vue';
+import ProxyAddressSearch from '../../components/ProxyAddressSearch.vue';
 
 const router = useRouter();
 const profile = ref({
@@ -425,7 +425,7 @@ const deleteService = async (id: number) => {
       <div v-if="profile.location?.type === 'fixed' || profile.location?.type === 'both'" class="space-y-3">
         <label class="text-xs text-tg-hint mb-2 block">Ваш адрес</label>
         
-        <AddressSearch
+        <ProxyAddressSearch
           placeholder="Начните вводить адрес..."
           @select="onAddressSelect"
         />
