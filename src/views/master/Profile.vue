@@ -10,6 +10,7 @@ const router = useRouter();
 const profile = ref({
   displayName: '',
   description: '',
+  avatarUrl: '',
   workingDates: {} as Record<string, { start: string; end: string }>,
   location: {
     type: 'fixed' as 'fixed' | 'mobile' | 'both',
@@ -25,11 +26,20 @@ const newService = ref({
   price: 0, 
   duration: 60, 
   currency: 'RUB',
-  locationType: 'at_client' as 'at_master' | 'at_client' | 'both' // По умолчанию "выезд" (всегда доступно)
+  locationType: 'at_client' as 'at_master' | 'at_client' | 'both', // По умолчанию "выезд" (всегда доступно)
+  imageFile: null as File | null
 });
 const loading = ref(true);
 const saving = ref(false);
 const showAddService = ref(false);
+
+// Для аватара
+const avatarFile = ref<File | null>(null);
+const avatarPreview = ref<string | null>(null);
+const uploadingAvatar = ref(false);
+
+// Для превью изображения новой услуги
+const serviceImagePreview = ref<string | null>(null);
 
 // Для календаря
 const currentMonth = ref(new Date());
@@ -183,6 +193,7 @@ onMounted(async () => {
       profile.value = {
         displayName: profileRes.data.profile.displayName || '',
         description: profileRes.data.profile.description || '',
+        avatarUrl: profileRes.data.profile.avatarUrl || '',
         workingDates: profileRes.data.profile.workingDates || {},
         location: profileRes.data.profile.location || {
           type: 'fixed',
@@ -268,13 +279,158 @@ const saveProfile = async () => {
   }
 };
 
+// Обработчики для аватара
+const onAvatarSelect = (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  
+  if (file) {
+    if (!file.type.startsWith('image/')) {
+      try {
+        WebApp.showAlert('Пожалуйста, выберите изображение');
+      } catch {
+        alert('Пожалуйста, выберите изображение');
+      }
+      return;
+    }
+    
+    if (file.size > 5 * 1024 * 1024) {
+      try {
+        WebApp.showAlert('Файл слишком большой (макс. 5MB)');
+      } catch {
+        alert('Файл слишком большой (макс. 5MB)');
+      }
+      return;
+    }
+    
+    avatarFile.value = file;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      avatarPreview.value = e.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  }
+};
+
+const uploadAvatar = async () => {
+  if (!avatarFile.value) return;
+  
+  uploadingAvatar.value = true;
+  try {
+    const formData = new FormData();
+    formData.append('avatar', avatarFile.value);
+    
+    const res = await api.post('/master/profile/avatar', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    
+    profile.value.avatarUrl = res.data.user.masterProfile?.avatarUrl || '';
+    avatarFile.value = null;
+    avatarPreview.value = null;
+    
+    try {
+      WebApp.HapticFeedback.notificationOccurred('success');
+    } catch {}
+  } catch {
+    try {
+      WebApp.showAlert('Ошибка загрузки фото');
+    } catch {
+      alert('Ошибка загрузки фото');
+    }
+  } finally {
+    uploadingAvatar.value = false;
+  }
+};
+
+const deleteAvatar = async () => {
+  const confirmed = confirm('Удалить фото профиля?');
+  if (!confirmed) return;
+  
+  try {
+    await api.delete('/master/profile/avatar');
+    profile.value.avatarUrl = '';
+    avatarFile.value = null;
+    avatarPreview.value = null;
+    
+    try {
+      WebApp.HapticFeedback.notificationOccurred('success');
+    } catch {}
+  } catch {
+    try {
+      WebApp.showAlert('Ошибка удаления фото');
+    } catch {
+      alert('Ошибка удаления фото');
+    }
+  }
+};
+
+// Обработчики для изображения услуги
+const onServiceImageSelect = (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  
+  if (file) {
+    if (!file.type.startsWith('image/')) {
+      try {
+        WebApp.showAlert('Пожалуйста, выберите изображение');
+      } catch {
+        alert('Пожалуйста, выберите изображение');
+      }
+      return;
+    }
+    
+    if (file.size > 5 * 1024 * 1024) {
+      try {
+        WebApp.showAlert('Файл слишком большой (макс. 5MB)');
+      } catch {
+        alert('Файл слишком большой (макс. 5MB)');
+      }
+      return;
+    }
+    
+    newService.value.imageFile = file;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      serviceImagePreview.value = e.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  }
+};
+
 const addService = async () => {
   if (!newService.value.title.trim()) return;
   try {
-    const res = await api.post('/master/services', newService.value);
-    services.value.push(res.data.service);
-    newService.value = { title: '', price: 0, duration: 60, currency: 'RUB', locationType: 'at_client' };
+    // Создаем услугу
+    const res = await api.post('/master/services', {
+      title: newService.value.title,
+      price: newService.value.price,
+      duration: newService.value.duration,
+      currency: newService.value.currency,
+      locationType: newService.value.locationType
+    });
+    
+    const createdService = res.data.service;
+    
+    // Если есть изображение - загружаем его
+    if (newService.value.imageFile) {
+      const formData = new FormData();
+      formData.append('image', newService.value.imageFile);
+      
+      try {
+        const imgRes = await api.put(`/master/services/${createdService.id}/image`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        createdService.imageUrl = imgRes.data.service.imageUrl;
+      } catch (err) {
+        console.error('Failed to upload service image:', err);
+      }
+    }
+    
+    services.value.push(createdService);
+    newService.value = { title: '', price: 0, duration: 60, currency: 'RUB', locationType: 'at_client', imageFile: null };
+    serviceImagePreview.value = null;
     showAddService.value = false;
+    
     try {
       WebApp.HapticFeedback.notificationOccurred('success');
     } catch {}
@@ -337,6 +493,74 @@ const deleteService = async (id: number) => {
       </div>
 
       <div class="space-y-3">
+        <!-- Avatar Upload -->
+        <div>
+          <label class="text-xs text-tg-hint mb-1.5 block">Фото профиля</label>
+          <div class="flex items-center gap-3">
+            <div class="relative">
+              <div 
+                v-if="avatarPreview || profile.avatarUrl" 
+                class="w-20 h-20 rounded-xl overflow-hidden bg-tg-bg"
+              >
+                <img 
+                  :src="avatarPreview || profile.avatarUrl" 
+                  alt="Avatar" 
+                  class="w-full h-full object-cover"
+                />
+              </div>
+              <div 
+                v-else 
+                class="w-20 h-20 rounded-xl bg-tg-bg flex items-center justify-center"
+              >
+                <svg class="w-8 h-8 text-tg-hint" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </div>
+            </div>
+            
+            <div class="flex-1 flex flex-col gap-2">
+              <label class="btn bg-accent/15 text-accent text-sm py-2 cursor-pointer">
+                <svg class="w-4 h-4 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Выбрать фото
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  class="hidden" 
+                  @change="onAvatarSelect"
+                />
+              </label>
+              
+              <div class="flex gap-2">
+                <button 
+                  v-if="avatarFile"
+                  @click="uploadAvatar"
+                  :disabled="uploadingAvatar"
+                  class="flex-1 btn bg-success text-white text-sm py-2"
+                >
+                  <svg v-if="uploadingAvatar" class="w-4 h-4 animate-spin inline" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                  </svg>
+                  {{ uploadingAvatar ? 'Загрузка...' : 'Загрузить' }}
+                </button>
+                
+                <button 
+                  v-if="profile.avatarUrl && !avatarFile"
+                  @click="deleteAvatar"
+                  class="btn bg-danger/15 text-danger text-sm py-2 px-3"
+                >
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          <p class="text-xs text-tg-hint mt-1.5">Максимум 5MB, форматы: JPG, PNG, WEBP</p>
+        </div>
+
         <div>
           <label class="text-xs text-tg-hint mb-1.5 block">Имя / Название</label>
           <input 
@@ -613,6 +837,40 @@ const deleteService = async (id: number) => {
       <!-- Add Service Form -->
       <transition name="slide">
         <div v-if="showAddService" class="mb-4 p-3 rounded-xl bg-tg-bg">
+          <!-- Service Image Upload -->
+          <div class="mb-3">
+            <label class="text-xs text-tg-hint mb-1.5 block">Фото услуги</label>
+            <div v-if="serviceImagePreview" class="mb-2">
+              <div class="relative w-full h-40 rounded-xl overflow-hidden bg-tg-secondary-bg">
+                <img 
+                  :src="serviceImagePreview" 
+                  alt="Service preview" 
+                  class="w-full h-full object-cover"
+                />
+                <button 
+                  @click="serviceImagePreview = null; newService.imageFile = null"
+                  class="absolute top-2 right-2 w-8 h-8 rounded-lg bg-danger/90 flex items-center justify-center text-white"
+                >
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <label class="btn bg-accent/15 text-accent text-sm py-2 cursor-pointer w-full">
+              <svg class="w-4 h-4 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              {{ serviceImagePreview ? 'Изменить фото' : 'Добавить фото' }}
+              <input 
+                type="file" 
+                accept="image/*" 
+                class="hidden" 
+                @change="onServiceImageSelect"
+              />
+            </label>
+          </div>
+
           <input 
             v-model="newService.title" 
             placeholder="Название услуги" 
@@ -720,6 +978,26 @@ const deleteService = async (id: number) => {
           :key="s.id" 
           class="flex items-center gap-3 p-3 rounded-xl bg-tg-bg group"
         >
+          <!-- Service Image -->
+          <div 
+            v-if="s.imageUrl" 
+            class="w-16 h-16 rounded-lg overflow-hidden bg-tg-secondary-bg shrink-0"
+          >
+            <img 
+              :src="s.imageUrl" 
+              :alt="s.title" 
+              class="w-full h-full object-cover"
+            />
+          </div>
+          <div 
+            v-else 
+            class="w-16 h-16 rounded-lg bg-tg-secondary-bg flex items-center justify-center shrink-0"
+          >
+            <svg class="w-6 h-6 text-tg-hint" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </div>
+
           <div class="flex-1 min-w-0">
             <div class="font-medium truncate">{{ s.title }}</div>
             <div class="text-xs text-tg-hint">

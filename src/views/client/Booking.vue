@@ -363,8 +363,20 @@ const formatSelectedDate = computed(() => {
             :class="selectedService?.id === s.id ? 'ring-2 ring-accent' : ''"
           >
             <div class="flex items-center gap-3">
+              <!-- Service Image -->
               <div 
-                class="w-12 h-12 rounded-xl flex items-center justify-center"
+                v-if="s.imageUrl"
+                class="w-16 h-16 rounded-xl overflow-hidden bg-tg-bg shrink-0"
+              >
+                <img 
+                  :src="s.imageUrl" 
+                  :alt="s.title" 
+                  class="w-full h-full object-cover"
+                />
+              </div>
+              <div 
+                v-else
+                class="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
                 :class="selectedService?.id === s.id 
                   ? 'bg-accent text-white' 
                   : 'bg-tg-bg'"
@@ -373,6 +385,7 @@ const formatSelectedDate = computed(() => {
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
                 </svg>
               </div>
+
               <div class="flex-1">
                 <div class="font-semibold">{{ s.title }}</div>
                 <div class="text-sm text-tg-hint">{{ s.duration }} мин</div>
@@ -629,11 +642,26 @@ const formatSelectedDate = computed(() => {
           <div class="flex items-center gap-3 pb-3 mb-3" style="border-bottom: 1px solid var(--tg-theme-hint-color, #ccc); opacity: 0.2;">
           </div>
           <div class="flex items-center gap-3 mb-4">
-            <div class="w-10 h-10 rounded-xl bg-accent/15 flex items-center justify-center">
+            <!-- Service Image or Icon -->
+            <div 
+              v-if="selectedService?.imageUrl"
+              class="w-12 h-12 rounded-xl overflow-hidden bg-tg-bg"
+            >
+              <img 
+                :src="selectedService.imageUrl" 
+                :alt="selectedService.title" 
+                class="w-full h-full object-cover"
+              />
+            </div>
+            <div 
+              v-else
+              class="w-10 h-10 rounded-xl bg-accent/15 flex items-center justify-center"
+            >
               <svg class="w-5 h-5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
               </svg>
             </div>
+
             <div>
               <div class="font-semibold">{{ selectedService?.title }}</div>
               <div class="text-xs text-tg-hint">{{ selectedService?.duration }} мин</div>
