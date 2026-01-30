@@ -11,6 +11,7 @@ const profile = ref({
   displayName: '',
   description: '',
   avatarUrl: '',
+  phoneNumber: '',
   workingDates: {} as Record<string, { start: string; end: string }>,
   location: {
     type: 'fixed' as 'fixed' | 'mobile' | 'both',
@@ -32,6 +33,10 @@ const newService = ref({
 const loading = ref(true);
 const saving = ref(false);
 const showAddService = ref(false);
+
+// Для редактирования услуги
+const editingService = ref<{ id: number; title: string; price: number; duration: number; currency: string; locationType: 'at_master' | 'at_client' | 'both'; imageFile: File | null } | null>(null);
+const editServiceImagePreview = ref<string | null>(null);
 
 // Для аватара
 const avatarFile = ref<File | null>(null);
@@ -190,10 +195,20 @@ onMounted(async () => {
     // Загружаем профиль
     const profileRes = await api.get('/master/profile');
     if (profileRes.data.profile) {
+      // Получаем номер телефона из Telegram, если он доступен
+      let telegramPhone = '';
+      try {
+        // В WebApp.initDataUnsafe может быть номер телефона если пользователь дал разрешение
+        if (WebApp.initDataUnsafe?.user?.phone_number) {
+          telegramPhone = WebApp.initDataUnsafe.user.phone_number;
+        }
+      } catch {}
+      
       profile.value = {
         displayName: profileRes.data.profile.displayName || '',
         description: profileRes.data.profile.description || '',
         avatarUrl: profileRes.data.profile.avatarUrl || '',
+        phoneNumber: profileRes.data.profile.phoneNumber || telegramPhone || '',
         workingDates: profileRes.data.profile.workingDates || {},
         location: profileRes.data.profile.location || {
           type: 'fixed',
@@ -458,6 +473,112 @@ const deleteService = async (id: number) => {
     }
   }
 };
+
+const startEditService = (service: any) => {
+  editingService.value = {
+    id: service.id,
+    title: service.title,
+    price: service.price,
+    duration: service.duration,
+    currency: service.currency,
+    locationType: service.locationType,
+    imageFile: null
+  };
+  editServiceImagePreview.value = service.imageUrl || null;
+  showAddService.value = false;
+};
+
+const cancelEditService = () => {
+  editingService.value = null;
+  editServiceImagePreview.value = null;
+};
+
+const onEditServiceImageSelect = (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  
+  if (file) {
+    if (!file.type.startsWith('image/')) {
+      try {
+        WebApp.showAlert('Пожалуйста, выберите изображение');
+      } catch {
+        alert('Пожалуйста, выберите изображение');
+      }
+      return;
+    }
+    
+    if (file.size > 5 * 1024 * 1024) {
+      try {
+        WebApp.showAlert('Файл слишком большой (макс. 5MB)');
+      } catch {
+        alert('Файл слишком большой (макс. 5MB)');
+      }
+      return;
+    }
+    
+    if (editingService.value) {
+      editingService.value.imageFile = file;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        editServiceImagePreview.value = e.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+};
+
+const updateService = async () => {
+  if (!editingService.value || !editingService.value.title.trim()) return;
+  
+  try {
+    const serviceId = editingService.value.id;
+    
+    // Обновляем данные услуги
+    const res = await api.put(`/master/services/${serviceId}`, {
+      title: editingService.value.title,
+      price: editingService.value.price,
+      duration: editingService.value.duration,
+      currency: editingService.value.currency,
+      locationType: editingService.value.locationType
+    });
+    
+    let updatedService = res.data.service;
+    
+    // Если есть новое изображение - загружаем его
+    if (editingService.value.imageFile) {
+      const formData = new FormData();
+      formData.append('image', editingService.value.imageFile);
+      
+      try {
+        const imgRes = await api.put(`/master/services/${serviceId}/image`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        updatedService.imageUrl = imgRes.data.service.imageUrl;
+      } catch (err) {
+        console.error('Failed to upload service image:', err);
+      }
+    }
+    
+    // Обновляем в списке
+    const index = services.value.findIndex(s => s.id === serviceId);
+    if (index !== -1) {
+      services.value[index] = updatedService;
+    }
+    
+    editingService.value = null;
+    editServiceImagePreview.value = null;
+    
+    try {
+      WebApp.HapticFeedback.notificationOccurred('success');
+    } catch {}
+  } catch {
+    try {
+      WebApp.showAlert('Ошибка обновления услуги');
+    } catch {
+      alert('Ошибка обновления услуги');
+    }
+  }
+};
 </script>
 
 <template>
@@ -577,6 +698,16 @@ const deleteService = async (id: number) => {
             class="w-full p-3 rounded-xl"
           />
           <p class="text-xs text-tg-hint mt-1.5">Будет показано клиентам в уведомлениях</p>
+        </div>
+        <div>
+          <label class="text-xs text-tg-hint mb-1.5 block">Номер телефона</label>
+          <input 
+            v-model="profile.phoneNumber" 
+            type="tel"
+            placeholder="+7 (999) 123-45-67"
+            class="w-full p-3 rounded-xl"
+          />
+          <p class="text-xs text-tg-hint mt-1.5">Для связи с клиентами</p>
         </div>
       </div>
     </div>
@@ -973,6 +1104,137 @@ const deleteService = async (id: number) => {
       </div>
 
       <div v-else class="space-y-2">
+        <!-- Edit Service Form -->
+        <transition name="slide">
+          <div v-if="editingService" class="mb-4 p-3 rounded-xl bg-accent/10 border border-accent/20">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="font-semibold text-accent">Редактирование услуги</h3>
+              <button 
+                @click="cancelEditService"
+                class="text-xs btn bg-tg-bg text-tg-hint py-1.5 px-3"
+              >
+                Отмена
+              </button>
+            </div>
+
+            <!-- Edit Service Image Upload -->
+            <div class="mb-3">
+              <label class="text-xs text-tg-hint mb-1.5 block">Фото услуги</label>
+              <div v-if="editServiceImagePreview" class="mb-2">
+                <div class="relative w-full h-40 rounded-xl overflow-hidden bg-tg-secondary-bg">
+                  <img 
+                    :src="editServiceImagePreview" 
+                    alt="Service preview" 
+                    class="w-full h-full object-cover"
+                  />
+                  <button 
+                    @click="editServiceImagePreview = null; editingService.imageFile = null"
+                    class="absolute top-2 right-2 w-8 h-8 rounded-lg bg-danger/90 flex items-center justify-center text-white"
+                  >
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <label class="btn bg-accent/15 text-accent text-sm py-2 cursor-pointer w-full">
+                <svg class="w-4 h-4 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                {{ editServiceImagePreview ? 'Изменить фото' : 'Добавить фото' }}
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  class="hidden" 
+                  @change="onEditServiceImageSelect"
+                />
+              </label>
+            </div>
+
+            <input 
+              v-model="editingService.title" 
+              placeholder="Название услуги" 
+              class="w-full p-3 rounded-xl mb-2"
+            />
+            <div class="grid grid-cols-2 gap-2 mb-3">
+              <div class="relative">
+                <input 
+                  v-model="editingService.price" 
+                  type="number" 
+                  placeholder="Цена"
+                  class="w-full p-3 rounded-xl pr-10"
+                />
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-tg-hint text-sm">₽</span>
+              </div>
+              <div class="relative">
+                <input 
+                  v-model="editingService.duration" 
+                  type="number" 
+                  placeholder="Время"
+                  class="w-full p-3 rounded-xl pr-12"
+                />
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-tg-hint text-sm">мин</span>
+              </div>
+            </div>
+            
+            <!-- Location Type for Edit -->
+            <div class="mb-3">
+              <label class="text-xs text-tg-hint mb-2 block">Где оказывается услуга?</label>
+              <div class="space-y-2">
+                <label 
+                  :class="[
+                    'flex items-center gap-2 text-sm cursor-pointer p-2 rounded-lg transition-colors',
+                    !profile.location?.address?.text ? 'opacity-50 cursor-not-allowed' : ''
+                  ]"
+                >
+                  <input 
+                    type="radio" 
+                    v-model="editingService.locationType" 
+                    value="at_master"
+                    :disabled="!profile.location?.address?.text"
+                    class="w-4 h-4"
+                  />
+                  <span>У мастера {{ profile.location?.address?.text ? '📍' : '(настройте адрес)' }}</span>
+                </label>
+                
+                <label class="flex items-center gap-2 text-sm cursor-pointer p-2 rounded-lg transition-colors">
+                  <input 
+                    type="radio" 
+                    v-model="editingService.locationType" 
+                    value="at_client"
+                    class="w-4 h-4"
+                  />
+                  <span>У клиента (выезд) 🚗</span>
+                </label>
+                
+                <label 
+                  v-if="profile.location?.address?.text" 
+                  class="flex items-center gap-2 text-sm cursor-pointer p-2 rounded-lg transition-colors"
+                >
+                  <input 
+                    type="radio" 
+                    v-model="editingService.locationType" 
+                    value="both"
+                    class="w-4 h-4"
+                  />
+                  <span>Оба варианта</span>
+                </label>
+              </div>
+            </div>
+            
+            <button 
+              @click="updateService" 
+              :disabled="!editingService.title.trim()"
+              class="w-full btn bg-accent text-white disabled:opacity-50"
+            >
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+              </svg>
+              Сохранить изменения
+            </button>
+          </div>
+        </transition>
+
         <div 
           v-for="s in services" 
           :key="s.id" 
@@ -1004,6 +1266,16 @@ const deleteService = async (id: number) => {
               {{ s.price }} {{ s.currency }} • {{ s.duration }} мин
             </div>
           </div>
+          
+          <button 
+            @click="startEditService(s)" 
+            class="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center"
+          >
+            <svg class="w-4 h-4 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+          </button>
+          
           <button 
             @click="deleteService(s.id)" 
             class="w-8 h-8 rounded-lg bg-danger/10 flex items-center justify-center"

@@ -104,10 +104,15 @@ const rebookAppointment = (appt: any) => {
   router.push(`/booking/${appt.masterId}`);
 };
 
+// Проверяем роль пользователя
+const user = ref<any>(null);
+const isMaster = computed(() => user.value?.role === 'master');
+
 onMounted(async () => {
   try {
     // Авторизация
-    await api.post('/auth/login', { initData: WebApp.initData || '' });
+    const authRes = await api.post('/auth/login', { initData: WebApp.initData || '' });
+    user.value = authRes.data.user;
     
     // Получаем записи
     const res = await api.get('/appointments');
@@ -127,6 +132,26 @@ onMounted(async () => {
       <h1 class="text-2xl font-bold">Мои записи</h1>
       <p class="text-tg-hint text-sm">Управляйте своими записями</p>
     </div>
+
+    <!-- Back to Master Dashboard (if user is master) -->
+    <router-link 
+      v-if="isMaster"
+      to="/master/dashboard" 
+      class="card flex items-center gap-3 mb-6 active:scale-[0.98] transition-transform"
+    >
+      <div class="w-10 h-10 rounded-xl bg-accent/15 flex items-center justify-center">
+        <svg class="w-5 h-5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+        </svg>
+      </div>
+      <div class="flex-1">
+        <div class="font-medium">Вернуться в Dashboard мастера</div>
+        <div class="text-xs text-tg-hint">Мои клиенты и услуги</div>
+      </div>
+      <svg class="w-5 h-5 text-tg-hint" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+      </svg>
+    </router-link>
 
     <!-- Loading -->
     <div v-if="loading" class="text-center py-12">

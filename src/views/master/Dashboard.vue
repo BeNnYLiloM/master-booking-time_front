@@ -360,6 +360,24 @@ onMounted(async () => {
 
     <!-- Navigation -->
     <router-link 
+      to="/client/appointments" 
+      class="card flex items-center gap-3 mb-3 active:scale-[0.98] transition-transform"
+    >
+      <div class="w-10 h-10 rounded-xl bg-blue-500/15 flex items-center justify-center">
+        <svg class="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      </div>
+      <div class="flex-1">
+        <div class="font-medium">Мои записи как клиент</div>
+        <div class="text-xs text-tg-hint">Записи к другим мастерам</div>
+      </div>
+      <svg class="w-5 h-5 text-tg-hint" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+      </svg>
+    </router-link>
+
+    <router-link 
       to="/master/profile" 
       class="card flex items-center gap-3 mb-6 active:scale-[0.98] transition-transform"
     >
