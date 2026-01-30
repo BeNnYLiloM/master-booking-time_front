@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import api from '../../api';
 import WebApp from '@twa-dev/sdk';
+import { favoritesService } from '../../utils/favorites';
 
 const router = useRouter();
 const appointments = ref<any[]>([]);
@@ -12,6 +13,9 @@ const showReviewForm = ref<number | null>(null);
 const reviewRating = ref(5);
 const reviewComment = ref('');
 const submittingReview = ref(false);
+const activeTab = ref<'appointments' | 'favorites'>('appointments');
+const favoriteMasters = ref<any[]>([]);
+const loadingFavorites = ref(false);
 
 // Разделяем на предстоящие и прошедшие
 const upcomingAppointments = computed(() => {
@@ -149,6 +153,51 @@ const submitReview = async (appointmentId: number) => {
 const user = ref<any>(null);
 const isMaster = computed(() => user.value?.role === 'master');
 
+// Загрузить избранных мастеров
+const loadFavorites = async () => {
+  loadingFavorites.value = true;
+  try {
+    const favoriteIds = favoritesService.getFavorites();
+    if (favoriteIds.length === 0) {
+      favoriteMasters.value = [];
+      return;
+    }
+    
+    // Загружаем данные о каждом мастере
+    const mastersPromises = favoriteIds.map(async (id) => {
+      try {
+        const masterRes = await api.get(`/public/master/${id}`);
+        const reviewsRes = await api.get(`/reviews/master/${id}`);
+        return {
+          ...masterRes.data,
+          rating: reviewsRes.data.rating
+        };
+      } catch {
+        return null;
+      }
+    });
+    
+    const masters = await Promise.all(mastersPromises);
+    favoriteMasters.value = masters.filter(m => m !== null);
+  } catch (e) {
+    console.error('Failed to load favorites:', e);
+  } finally {
+    loadingFavorites.value = false;
+  }
+};
+
+const removeFavorite = (masterId: number) => {
+  favoritesService.removeFavorite(masterId);
+  favoriteMasters.value = favoriteMasters.value.filter(m => m.id !== masterId);
+  try {
+    WebApp.HapticFeedback.notificationOccurred('success');
+  } catch {}
+};
+
+const goToBooking = (masterId: number) => {
+  router.push(`/booking/${masterId}`);
+};
+
 onMounted(async () => {
   try {
     // Авторизация
@@ -158,6 +207,9 @@ onMounted(async () => {
     // Получаем записи
     const res = await api.get('/appointments');
     appointments.value = res.data;
+    
+    // Загружаем избранное
+    await loadFavorites();
   } catch (e) {
     console.error(e);
   } finally {
@@ -172,6 +224,25 @@ onMounted(async () => {
     <div class="mb-6">
       <h1 class="text-2xl font-bold">Мои записи</h1>
       <p class="text-tg-hint text-sm">Управляйте своими записями</p>
+    </div>
+    
+    <!-- Tabs -->
+    <div class="flex gap-2 mb-6 bg-tg-secondary-bg p-1 rounded-xl">
+      <button
+        @click="activeTab = 'appointments'"
+        class="flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all"
+        :class="activeTab === 'appointments' ? 'bg-tg-bg text-accent' : 'text-tg-hint'"
+      >
+        📅 Записи
+      </button>
+      <button
+        @click="activeTab = 'favorites'"
+        class="flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all"
+        :class="activeTab === 'favorites' ? 'bg-tg-bg text-accent' : 'text-tg-hint'"
+      >
+        ⭐ Избранное
+        <span v-if="favoriteMasters.length > 0" class="ml-1">({{ favoriteMasters.length }})</span>
+      </button>
     </div>
 
     <!-- Back to Master Dashboard (if user is master) -->
@@ -194,14 +265,16 @@ onMounted(async () => {
       </svg>
     </router-link>
 
-    <!-- Loading -->
-    <div v-if="loading" class="text-center py-12">
-      <div class="spinner mx-auto mb-3"></div>
-      <p class="text-tg-hint text-sm">Загрузка записей...</p>
-    </div>
+    <!-- Appointments Tab -->
+    <div v-if="activeTab === 'appointments'">
+      <!-- Loading -->
+      <div v-if="loading" class="text-center py-12">
+        <div class="spinner mx-auto mb-3"></div>
+        <p class="text-tg-hint text-sm">Загрузка записей...</p>
+      </div>
 
-    <!-- Empty State -->
-    <div v-else-if="appointments.length === 0" class="text-center py-12">
+      <!-- Empty State -->
+      <div v-else-if="appointments.length === 0" class="text-center py-12">
       <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-tg-secondary-bg flex items-center justify-center">
         <svg class="w-8 h-8 text-tg-hint" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -209,10 +282,10 @@ onMounted(async () => {
       </div>
       <h3 class="font-semibold mb-1">Записей пока нет</h3>
       <p class="text-tg-hint text-sm mb-6">Запишитесь к мастеру по ссылке</p>
-    </div>
+      </div>
 
-    <!-- Appointments List -->
-    <div v-else class="space-y-6">
+      <!-- Appointments List -->
+      <div v-else class="space-y-6">
       <!-- Upcoming -->
       <div v-if="upcomingAppointments.length > 0">
         <h2 class="text-sm font-semibold text-tg-hint uppercase tracking-wider mb-3 flex items-center gap-2">
@@ -390,6 +463,94 @@ onMounted(async () => {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+      </div>
+    </div>
+    
+    <!-- Favorites Tab -->
+    <div v-if="activeTab === 'favorites'">
+      <!-- Loading -->
+      <div v-if="loadingFavorites" class="text-center py-12">
+        <div class="spinner mx-auto mb-3"></div>
+        <p class="text-tg-hint text-sm">Загрузка избранных...</p>
+      </div>
+      
+      <!-- Empty State -->
+      <div v-else-if="favoriteMasters.length === 0" class="text-center py-12">
+        <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-tg-secondary-bg flex items-center justify-center">
+          <svg class="w-8 h-8 text-tg-hint" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+          </svg>
+        </div>
+        <h3 class="font-semibold mb-1">Нет избранных мастеров</h3>
+        <p class="text-tg-hint text-sm">Добавляйте мастеров в избранное для быстрого доступа</p>
+      </div>
+      
+      <!-- Favorites List -->
+      <div v-else class="space-y-3">
+        <div
+          v-for="master in favoriteMasters"
+          :key="master.id"
+          class="card"
+        >
+          <div class="flex items-start gap-3">
+            <!-- Avatar -->
+            <div 
+              v-if="master.masterProfile?.avatarUrl"
+              class="w-16 h-16 rounded-xl overflow-hidden bg-tg-bg shrink-0"
+            >
+              <img 
+                :src="master.masterProfile.avatarUrl" 
+                alt="Master avatar" 
+                class="w-full h-full object-cover"
+              />
+            </div>
+            <div 
+              v-else
+              class="w-16 h-16 rounded-xl bg-accent/15 flex items-center justify-center shrink-0"
+            >
+              <svg class="w-8 h-8 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            </div>
+            
+            <div class="flex-1 min-w-0">
+              <div class="font-semibold truncate">
+                {{ master.masterProfile?.displayName || master.firstName || 'Мастер' }}
+              </div>
+              <div v-if="master.masterProfile?.description" class="text-sm text-tg-hint truncate">
+                {{ master.masterProfile.description }}
+              </div>
+              
+              <!-- Rating -->
+              <div v-if="master.rating && master.rating.count > 0" class="flex items-center gap-1 mt-1">
+                <svg class="w-4 h-4 text-accent" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                </svg>
+                <span class="text-sm font-semibold">{{ master.rating.average }}</span>
+                <span class="text-xs text-tg-hint">({{ master.rating.count }})</span>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Actions -->
+          <div class="flex gap-2 mt-3 pt-3 border-t border-tg-hint/10">
+            <button
+              @click="goToBooking(master.id)"
+              class="flex-1 btn btn-primary text-sm py-2"
+            >
+              📅 Записаться
+            </button>
+            <button
+              @click="removeFavorite(master.id)"
+              class="btn btn-secondary text-sm py-2 px-4"
+            >
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+              </svg>
+            </button>
           </div>
         </div>
       </div>
