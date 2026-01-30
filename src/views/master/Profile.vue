@@ -195,20 +195,11 @@ onMounted(async () => {
     // Загружаем профиль
     const profileRes = await api.get('/master/profile');
     if (profileRes.data.profile) {
-      // Получаем номер телефона из Telegram, если он доступен
-      let telegramPhone = '';
-      try {
-        // В WebApp.initDataUnsafe может быть номер телефона если пользователь дал разрешение
-        if (WebApp.initDataUnsafe?.user?.phone_number) {
-          telegramPhone = WebApp.initDataUnsafe.user.phone_number;
-        }
-      } catch {}
-      
       profile.value = {
         displayName: profileRes.data.profile.displayName || '',
         description: profileRes.data.profile.description || '',
         avatarUrl: profileRes.data.profile.avatarUrl || '',
-        phoneNumber: profileRes.data.profile.phoneNumber || telegramPhone || '',
+        phoneNumber: profileRes.data.profile.phoneNumber || '',
         workingDates: profileRes.data.profile.workingDates || {},
         location: profileRes.data.profile.location || {
           type: 'fixed',
