@@ -5,10 +5,12 @@ import api from '../../api';
 import WebApp from '@twa-dev/sdk';
 import YandexMap from '../../components/YandexMap.vue';
 import ProxyAddressSearch from '../../components/ProxyAddressSearch.vue';
+import { favoritesService } from '../../utils/favorites';
 
 const route = useRoute();
 const router = useRouter();
 const masterId = route.params.masterId;
+const isFavorite = ref(false);
 
 const isTelegram = computed(() => {
   try {
@@ -32,6 +34,8 @@ const error = ref<string | null>(null);
 const masterWorkingDates = ref<Record<string, any>>({});
 const currentMonth = ref(new Date());
 const masterProfile = ref<any>(null);
+const masterRating = ref<any>(null);
+const masterReviews = ref<any[]>([]);
 
 // Location state
 const selectedLocationType = ref<'at_master' | 'at_client' | null>(null);
@@ -94,6 +98,9 @@ const nextMonth = () => {
 
 onMounted(async () => {
   try {
+    // Проверяем избранное
+    isFavorite.value = favoritesService.isFavorite(Number(masterId));
+    
     // Загружаем услуги
     const servicesRes = await api.get(`/public/services/${masterId}`);
     services.value = servicesRes.data.services;
@@ -102,6 +109,15 @@ onMounted(async () => {
     const masterRes = await api.get(`/public/master/${masterId}`);
     masterWorkingDates.value = masterRes.data.masterProfile?.workingDates || {};
     masterProfile.value = masterRes.data.masterProfile || null;
+    
+    // Загружаем отзывы и рейтинг
+    try {
+      const reviewsRes = await api.get(`/reviews/master/${masterId}`);
+      masterRating.value = reviewsRes.data.rating;
+      masterReviews.value = reviewsRes.data.reviews.slice(0, 5); // Показываем только 5 последних
+    } catch (e) {
+      console.error('Failed to load reviews:', e);
+    }
     
     if (Object.keys(masterWorkingDates.value).length === 0) {
       error.value = 'У мастера не настроено рабочее расписание';
@@ -314,6 +330,15 @@ const formatSelectedDate = computed(() => {
   });
 });
 
+const toggleFavorite = () => {
+  isFavorite.value = favoritesService.toggleFavorite(Number(masterId));
+  if (isTelegram.value) {
+    try { 
+      WebApp.HapticFeedback.notificationOccurred(isFavorite.value ? 'success' : 'warning');
+    } catch {}
+  }
+};
+
 // Функция для формирования краткого описания графика работы
 const getWorkingDaysSummary = () => {
   const dates = Object.keys(masterWorkingDates.value);
@@ -370,7 +395,24 @@ const getWorkingDaysSummary = () => {
 
           <!-- Master Info -->
           <div class="flex-1 min-w-0">
-            <h2 class="font-bold text-lg">{{ masterProfile.displayName || 'Мастер' }}</h2>
+            <div class="flex items-center gap-2">
+              <h2 class="font-bold text-lg">{{ masterProfile.displayName || 'Мастер' }}</h2>
+              <button
+                @click="toggleFavorite"
+                class="p-1 rounded-lg transition-all active:scale-90"
+                :class="isFavorite ? 'text-accent' : 'text-tg-hint/50 hover:text-tg-hint'"
+              >
+                <svg 
+                  class="w-5 h-5" 
+                  :fill="isFavorite ? 'currentColor' : 'none'"
+                  viewBox="0 0 24 24" 
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                </svg>
+              </button>
+            </div>
             <p v-if="masterProfile.description" class="text-sm text-tg-hint">{{ masterProfile.description }}</p>
           </div>
         </div>
@@ -491,6 +533,44 @@ const getWorkingDaysSummary = () => {
               </div>
             </div>
           </button>
+        </div>
+
+        <!-- Master Rating & Reviews -->
+        <div v-if="!loading && masterRating && masterRating.count > 0" class="mt-6 card">
+          <div class="flex items-center gap-2 mb-3">
+            <svg class="w-5 h-5 text-accent" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+            </svg>
+            <div>
+              <span class="font-bold text-lg">{{ masterRating.average }}</span>
+              <span class="text-tg-hint text-sm ml-1">({{ masterRating.count }} {{ masterRating.count === 1 ? 'отзыв' : 'отзывов' }})</span>
+            </div>
+          </div>
+          
+          <div v-if="masterReviews.length > 0" class="space-y-3">
+            <div 
+              v-for="review in masterReviews" 
+              :key="review.id"
+              class="p-3 bg-tg-secondary-bg rounded-xl"
+            >
+              <div class="flex items-center gap-2 mb-1">
+                <div class="flex">
+                  <svg 
+                    v-for="i in 5" 
+                    :key="i"
+                    class="w-4 h-4"
+                    :class="i <= review.rating ? 'text-accent' : 'text-tg-hint/30'"
+                    fill="currentColor" 
+                    viewBox="0 0 20 20"
+                  >
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                  </svg>
+                </div>
+                <span class="text-xs text-tg-hint">{{ review.client?.firstName || 'Клиент' }}</span>
+              </div>
+              <p v-if="review.comment" class="text-sm text-tg-text">{{ review.comment }}</p>
+            </div>
+          </div>
         </div>
 
         <!-- Location Selection (if service is 'both') -->

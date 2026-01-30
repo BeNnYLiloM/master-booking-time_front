@@ -10,6 +10,7 @@ const user = ref<any>(null);
 const loading = ref(true);
 const copied = ref(false);
 const processingId = ref<number | null>(null);
+const stats = ref<any>(null);
 
 // Фильтры
 const selectedDate = ref<string | null>(null); // Фильтр по дате из календаря
@@ -269,8 +270,13 @@ onMounted(async () => {
     const authRes = await api.post('/auth/login', { initData: WebApp.initData || '' });
     user.value = authRes.data.user;
 
-    const res = await api.get('/appointments');
-    appointments.value = res.data;
+    const [appointmentsRes, statsRes] = await Promise.all([
+      api.get('/appointments'),
+      api.get('/master/stats')
+    ]);
+    
+    appointments.value = appointmentsRes.data;
+    stats.value = statsRes.data;
     
     try {
       WebApp.MainButton.setText('⚙️ Настройки');
@@ -321,6 +327,39 @@ onMounted(async () => {
         <div class="text-2xl font-bold text-tg-text">{{ activeAppointments.length }}</div>
         <div class="text-xs text-tg-hint mt-1">Всего</div>
       </button>
+    </div>
+
+    <!-- Extended Stats Widget -->
+    <div v-if="stats" class="card mb-6">
+      <div class="flex items-center gap-2 mb-4">
+        <svg class="w-5 h-5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        </svg>
+        <h3 class="font-semibold">Статистика</h3>
+      </div>
+      
+      <div class="grid grid-cols-2 gap-3 mb-3">
+        <!-- За неделю -->
+        <div class="bg-tg-secondary-bg rounded-xl p-3">
+          <div class="text-xs text-tg-hint mb-1">За неделю</div>
+          <div class="font-bold text-lg">{{ stats.week.appointments }} {{ stats.week.appointments === 1 ? 'запись' : 'записей' }}</div>
+          <div class="text-xs text-success mt-1">{{ stats.week.revenue }} ₽</div>
+        </div>
+        
+        <!-- За месяц -->
+        <div class="bg-tg-secondary-bg rounded-xl p-3">
+          <div class="text-xs text-tg-hint mb-1">За месяц</div>
+          <div class="font-bold text-lg">{{ stats.month.appointments }} {{ stats.month.appointments === 1 ? 'запись' : 'записей' }}</div>
+          <div class="text-xs text-success mt-1">{{ stats.month.revenue }} ₽</div>
+        </div>
+      </div>
+      
+      <!-- Популярная услуга -->
+      <div v-if="stats.popularService" class="bg-accent/10 rounded-xl p-3">
+        <div class="text-xs text-tg-hint mb-1">🏆 Популярная услуга</div>
+        <div class="font-semibold text-sm">{{ stats.popularService.title }}</div>
+        <div class="text-xs text-accent mt-0.5">{{ stats.popularService.count }} завершённых</div>
+      </div>
     </div>
 
     <!-- Share Link Card -->

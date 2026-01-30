@@ -8,6 +8,10 @@ const router = useRouter();
 const appointments = ref<any[]>([]);
 const loading = ref(true);
 const cancellingId = ref<number | null>(null);
+const showReviewForm = ref<number | null>(null);
+const reviewRating = ref(5);
+const reviewComment = ref('');
+const submittingReview = ref(false);
 
 // Разделяем на предстоящие и прошедшие
 const upcomingAppointments = computed(() => {
@@ -102,6 +106,43 @@ const cancelAppointment = async (id: number) => {
 const rebookAppointment = (appt: any) => {
   // Переход к записи с тем же мастером
   router.push(`/booking/${appt.masterId}`);
+};
+
+const openReviewForm = (appointmentId: number) => {
+  showReviewForm.value = appointmentId;
+  reviewRating.value = 5;
+  reviewComment.value = '';
+};
+
+const closeReviewForm = () => {
+  showReviewForm.value = null;
+  reviewRating.value = 5;
+  reviewComment.value = '';
+};
+
+const submitReview = async (appointmentId: number) => {
+  submittingReview.value = true;
+  try {
+    await api.post('/reviews', {
+      appointmentId,
+      rating: reviewRating.value,
+      comment: reviewComment.value || undefined
+    });
+    
+    closeReviewForm();
+    try {
+      WebApp.HapticFeedback.notificationOccurred('success');
+    } catch {}
+    
+    alert('✅ Спасибо за отзыв!');
+  } catch (e: any) {
+    alert(e.response?.data?.error || 'Ошибка при отправке отзыва');
+    try {
+      WebApp.HapticFeedback.notificationOccurred('error');
+    } catch {}
+  } finally {
+    submittingReview.value = false;
+  }
 };
 
 // Проверяем роль пользователя
@@ -281,12 +322,73 @@ onMounted(async () => {
             
             <!-- Rebook button for completed -->
             <div v-if="appt.status === 'completed' || appt.status === 'confirmed'" class="mt-3 pt-3 border-t border-tg-hint/10">
-              <button 
-                @click="rebookAppointment(appt)"
-                class="w-full btn btn-secondary text-sm py-2"
-              >
-                Записаться снова
-              </button>
+              <!-- Review Form -->
+              <div v-if="showReviewForm === appt.id" class="mb-3 space-y-3">
+                <div>
+                  <label class="text-sm font-medium mb-2 block">Оцените услугу</label>
+                  <div class="flex gap-2">
+                    <button
+                      v-for="star in 5"
+                      :key="star"
+                      @click="reviewRating = star"
+                      class="w-10 h-10 flex items-center justify-center transition-transform active:scale-90"
+                    >
+                      <svg 
+                        class="w-8 h-8"
+                        :class="star <= reviewRating ? 'text-accent' : 'text-tg-hint/30'"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                
+                <div>
+                  <label class="text-sm font-medium mb-2 block">Комментарий (необязательно)</label>
+                  <textarea
+                    v-model="reviewComment"
+                    placeholder="Расскажите о вашем опыте..."
+                    rows="3"
+                    class="w-full px-3 py-2 bg-tg-secondary-bg rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-accent"
+                  ></textarea>
+                </div>
+                
+                <div class="flex gap-2">
+                  <button
+                    @click="submitReview(appt.id)"
+                    :disabled="submittingReview"
+                    class="flex-1 btn btn-primary text-sm py-2"
+                  >
+                    {{ submittingReview ? 'Отправка...' : 'Отправить отзыв' }}
+                  </button>
+                  <button
+                    @click="closeReviewForm"
+                    :disabled="submittingReview"
+                    class="flex-1 btn btn-secondary text-sm py-2"
+                  >
+                    Отмена
+                  </button>
+                </div>
+              </div>
+              
+              <!-- Buttons -->
+              <div v-else class="flex gap-2">
+                <button 
+                  v-if="appt.status === 'completed'"
+                  @click="openReviewForm(appt.id)"
+                  class="flex-1 btn btn-secondary text-sm py-2"
+                >
+                  ⭐ Оставить отзыв
+                </button>
+                <button 
+                  @click="rebookAppointment(appt)"
+                  class="flex-1 btn btn-secondary text-sm py-2"
+                >
+                  Записаться снова
+                </button>
+              </div>
             </div>
           </div>
         </div>

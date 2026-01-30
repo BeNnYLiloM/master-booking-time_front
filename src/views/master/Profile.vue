@@ -50,6 +50,9 @@ const serviceImagePreview = ref<string | null>(null);
 const currentMonth = ref(new Date());
 const selectedDates = ref<Set<string>>(new Set());
 const workingTime = ref({ start: '09:00', end: '18:00' });
+const showVacationModal = ref(false);
+const vacationStart = ref('');
+const vacationEnd = ref('');
 
 // Для карты
 const showMap = ref(false);
@@ -147,6 +150,53 @@ const removeSelectedDates = () => {
   try {
     WebApp.HapticFeedback.notificationOccurred('success');
   } catch {}
+};
+
+// Открыть модальное окно для выбора отпуска
+const openVacationModal = () => {
+  const today = new Date().toISOString().split('T')[0];
+  vacationStart.value = today || '';
+  vacationEnd.value = today || '';
+  showVacationModal.value = true;
+};
+
+// Отметить выходные/отпуск
+const markVacation = () => {
+  if (!vacationStart.value || !vacationEnd.value) {
+    alert('Укажите начало и конец периода');
+    return;
+  }
+  
+  const start = new Date(vacationStart.value);
+  const end = new Date(vacationEnd.value);
+  
+  if (start > end) {
+    alert('Дата начала не может быть позже даты окончания');
+    return;
+  }
+  
+  // Удаляем все даты в диапазоне
+  const newDates = { ...profile.value.workingDates };
+  const current = new Date(start);
+  let removedCount = 0;
+  
+  while (current <= end) {
+    const dateStr = current.toISOString().split('T')[0] || '';
+    if (dateStr && newDates[dateStr]) {
+      delete newDates[dateStr];
+      removedCount++;
+    }
+    current.setDate(current.getDate() + 1);
+  }
+  
+  profile.value.workingDates = newDates;
+  showVacationModal.value = false;
+  
+  try {
+    WebApp.HapticFeedback.notificationOccurred('success');
+  } catch {}
+  
+  alert(`✅ Удалено рабочих дней: ${removedCount}`);
 };
 
 // Массовое заполнение
@@ -816,12 +866,23 @@ const updateService = async () => {
       <!-- Quick Fill Button -->
       <button 
         @click="fillWeekdays"
-        class="w-full mb-4 btn bg-accent/15 text-accent text-sm py-2.5"
+        class="w-full mb-3 btn bg-accent/15 text-accent text-sm py-2.5"
       >
         <svg class="w-4 h-4 inline mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
         </svg>
         Заполнить Пн-Пт на 2 месяца
+      </button>
+      
+      <!-- Vacation/Days Off Button -->
+      <button 
+        @click="openVacationModal"
+        class="w-full mb-4 btn bg-blue-500/15 text-blue-500 text-sm py-2.5"
+      >
+        <svg class="w-4 h-4 inline mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+        Отметить отпуск/выходные
       </button>
 
       <!-- Calendar Navigation -->
@@ -1276,6 +1337,55 @@ const updateService = async () => {
             </svg>
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Vacation Modal -->
+  <div 
+    v-if="showVacationModal"
+    class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+    @click.self="showVacationModal = false"
+  >
+    <div class="card max-w-md w-full animate-scale-in">
+      <h3 class="text-lg font-bold mb-4">Отметить отпуск/выходные</h3>
+      <p class="text-sm text-tg-hint mb-4">
+        Выберите период, в который вы НЕ работаете. Все рабочие дни в этом периоде будут удалены.
+      </p>
+      
+      <div class="space-y-3 mb-4">
+        <div>
+          <label class="text-sm font-medium mb-1.5 block">Начало периода</label>
+          <input 
+            type="date"
+            v-model="vacationStart"
+            class="w-full p-3 rounded-xl bg-tg-bg"
+          />
+        </div>
+        
+        <div>
+          <label class="text-sm font-medium mb-1.5 block">Конец периода</label>
+          <input 
+            type="date"
+            v-model="vacationEnd"
+            class="w-full p-3 rounded-xl bg-tg-bg"
+          />
+        </div>
+      </div>
+      
+      <div class="flex gap-2">
+        <button
+          @click="markVacation"
+          class="flex-1 btn btn-primary text-sm py-2.5"
+        >
+          Удалить дни
+        </button>
+        <button
+          @click="showVacationModal = false"
+          class="flex-1 btn btn-secondary text-sm py-2.5"
+        >
+          Отмена
+        </button>
       </div>
     </div>
   </div>
