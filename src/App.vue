@@ -25,6 +25,14 @@ onMounted(() => {
     timestamp: new Date().toISOString()
   });
   
+  // Отключаем обновление страницы (предупреждаем пользователя)
+  window.addEventListener('beforeunload', (e) => {
+    // В Telegram Mini Apps обновление приводит к потере initData
+    // Показываем предупреждение браузера
+    e.preventDefault();
+    return (e.returnValue = 'Обновление страницы приведет к выходу из приложения. Вы уверены?');
+  });
+  
   try {
     // Обработка start_param для deep link (ссылка для клиентов)
     const startParam = WebApp.initDataUnsafe?.start_param;
