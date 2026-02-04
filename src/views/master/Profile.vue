@@ -7,6 +7,10 @@ import YandexMap from '../../components/YandexMap.vue';
 import ProxyAddressSearch from '../../components/ProxyAddressSearch.vue';
 import { debugHelper } from '../../utils/debugHelper';
 
+console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+console.log('[Profile] 🎬 SCRIPT SETUP EXECUTED');
+console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
 const router = useRouter();
 
 const profile = ref({
@@ -250,13 +254,23 @@ const fillWeekdays = () => {
 };
 
 // Функция возврата на Dashboard
-const goToDashboard = () => {
+const goToDashboard = async () => {
+  console.log('[Profile] ⬅️ goToDashboard ВЫЗВАНА');
+  
   debugHelper.log('info', '[Profile] 🔙 Возврат на Dashboard', {
     from: router.currentRoute.value.path,
     to: '/master/dashboard',
     timestamp: new Date().toISOString()
   });
-  router.push('/master/dashboard');
+  
+  try {
+    console.log('[Profile] Вызываю router.push...');
+    await router.push('/master/dashboard');
+    console.log('[Profile] ✅ router.push завершён');
+  } catch (error) {
+    console.error('[Profile] ❌ Ошибка router.push:', error);
+    debugHelper.log('error', '[Profile] Ошибка навигации', error);
+  }
 };
 
 onMounted(async () => {
@@ -316,6 +330,8 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+  console.log('[Profile] 💀 onBeforeUnmount');
+  debugHelper.log('info', '[Profile] 💀 Компонент размонтируется');
   // Ничего не делаем - используем обычную кнопку в UI
 });
 

@@ -5,6 +5,10 @@ import api from '../../api';
 import WebApp from '@twa-dev/sdk';
 import { debugHelper } from '../../utils/debugHelper';
 
+console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+console.log('[Dashboard] 🎬 SCRIPT SETUP EXECUTED');
+console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
 const router = useRouter();
 
 // Handlers для Telegram кнопок
@@ -326,25 +330,36 @@ const loadData = async () => {
 };
 
 onMounted(async () => {
-  debugHelper.log('info', '[Dashboard] 🚀 onMounted вызван', { 
-    route: router.currentRoute.value.path,
-    timestamp: new Date().toISOString()
-  });
-  
-  // Прокручиваем страницу наверх
-  window.scrollTo({ top: 0, behavior: 'instant' });
-  
-  // Очищаем все предыдущие обработчики
   try {
-    WebApp.BackButton.hide();
-    WebApp.MainButton.hide();
-  } catch {}
-  
-  // ВСЕГДА загружаем данные при монтировании
-  await loadData();
+    console.log('[Dashboard] onMounted START');
+    debugHelper.log('info', '[Dashboard] 🚀 onMounted вызван', { 
+      route: router.currentRoute.value.path,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Прокручиваем страницу наверх
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    
+    // Очищаем все предыдущие обработчики
+    try {
+      WebApp.BackButton.hide();
+      WebApp.MainButton.hide();
+    } catch {}
+    
+    // ВСЕГДА загружаем данные при монтировании
+    await loadData();
+    
+    console.log('[Dashboard] onMounted END');
+  } catch (error) {
+    console.error('[Dashboard] ОШИБКА в onMounted:', error);
+    debugHelper.log('error', '[Dashboard] ❌ Критическая ошибка в onMounted', error);
+  }
 });
 
 onBeforeUnmount(() => {
+  console.log('[Dashboard] 💀 onBeforeUnmount');
+  debugHelper.log('info', '[Dashboard] 💀 Компонент размонтируется');
+  
   try {
     if (backButtonHandler) {
       WebApp.BackButton.offClick(backButtonHandler);

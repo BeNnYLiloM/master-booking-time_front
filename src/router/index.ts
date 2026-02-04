@@ -34,7 +34,12 @@ const router = createRouter({
 
 // Навигационный guard для предотвращения повторной авторизации
 router.beforeEach((to, from, next) => {
-  debugHelper.log('info', `[Router] Навигация: ${from.path} → ${to.path}`);
+  console.log(`[Router Guard] ${from.path} → ${to.path}`);
+  debugHelper.log('info', `[Router] 🔀 Guard: ${from.path} → ${to.path}`, {
+    toName: to.name,
+    fromName: from.name,
+    timestamp: new Date().toISOString()
+  });
   
   // Если идем на Home, но пришли с другой страницы (не первый вход)
   // и роль уже есть - перенаправляем сразу на нужную страницу
@@ -42,7 +47,7 @@ router.beforeEach((to, from, next) => {
     const userRole = localStorage.getItem('userRole');
     
     if (userRole) {
-      debugHelper.log('info', `[Router] Redirect к ${userRole === 'master' ? 'dashboard' : 'appointments'}`);
+      debugHelper.log('info', `[Router] ↪️ Redirect к ${userRole === 'master' ? 'dashboard' : 'appointments'}`);
       // Уже авторизованы - перенаправляем на нужную страницу
       if (userRole === 'master') {
         next('/master/dashboard');
@@ -53,6 +58,7 @@ router.beforeEach((to, from, next) => {
     }
   }
   
+  debugHelper.log('info', '[Router] ✅ Guard пропускает');
   next();
 });
 
