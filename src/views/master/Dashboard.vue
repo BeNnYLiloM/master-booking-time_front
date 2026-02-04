@@ -324,24 +324,46 @@ const loadData = async () => {
     console.log('[Dashboard] Данные записаны в ref');
     
     try {
-      // Очищаем старые обработчики
-      if (backButtonHandler) {
-        WebApp.BackButton.offClick(backButtonHandler);
+      console.log('[Dashboard] Настраиваю Telegram кнопки...');
+      
+      // Сначала ПОЛНОСТЬЮ очищаем и скрываем кнопки
+      try {
+        if (backButtonHandler) {
+          WebApp.BackButton.offClick(backButtonHandler);
+          backButtonHandler = null;
+        }
+        if (mainButtonHandler) {
+          WebApp.MainButton.offClick(mainButtonHandler);
+          mainButtonHandler = null;
+        }
+        WebApp.BackButton.hide();
+        WebApp.MainButton.hide();
+        console.log('[Dashboard] Старые обработчики очищены');
+      } catch (e) {
+        console.warn('[Dashboard] Ошибка очистки обработчиков:', e);
       }
-      if (mainButtonHandler) {
-        WebApp.MainButton.offClick(mainButtonHandler);
-      }
+      
+      // Небольшая задержка перед установкой новых обработчиков
+      await new Promise(resolve => setTimeout(resolve, 100));
       
       // Показываем BackButton для возврата на главную
-      backButtonHandler = () => router.push('/');
-      WebApp.BackButton.show();
+      backButtonHandler = () => {
+        console.log('[Dashboard] BackButton НАЖАТА');
+        router.push('/');
+      };
       WebApp.BackButton.onClick(backButtonHandler);
+      WebApp.BackButton.show();
+      console.log('[Dashboard] BackButton настроена');
       
       // Показываем MainButton для перехода в настройки
-      mainButtonHandler = () => router.push('/master/profile');
-      WebApp.MainButton.setText('⚙️ Настройки');
+      mainButtonHandler = () => {
+        console.log('[Dashboard] MainButton НАЖАТА - переход в настройки');
+        router.push('/master/profile');
+      };
       WebApp.MainButton.onClick(mainButtonHandler);
+      WebApp.MainButton.setText('⚙️ Настройки');
       WebApp.MainButton.show();
+      console.log('[Dashboard] MainButton настроена');
       
       console.log('[Dashboard] Telegram кнопки настроены');
       debugHelper.log('info', '[Dashboard] 🔘 Telegram кнопки настроены');
