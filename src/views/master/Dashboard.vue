@@ -309,18 +309,12 @@ const loadData = async () => {
       // Небольшая задержка перед установкой новых обработчиков
       await new Promise(resolve => setTimeout(resolve, 100));
       
-      // Показываем BackButton для возврата на главную
-      backButtonHandler = () => router.push('/');
-      WebApp.BackButton.onClick(backButtonHandler);
-      WebApp.BackButton.show();
-      
-      // Показываем MainButton для перехода в настройки
+      // НЕ показываем BackButton на Dashboard (некуда возвращаться)
+      // Показываем только MainButton для перехода в настройки
       mainButtonHandler = () => router.push('/master/profile');
       WebApp.MainButton.onClick(mainButtonHandler);
       WebApp.MainButton.setText('⚙️ Настройки');
       WebApp.MainButton.show();
-      
-      debugHelper.log('info', '[Dashboard] 🔘 Telegram кнопки настроены');
     } catch (e) {
       debugHelper.log('warn', '[Dashboard] Telegram кнопки недоступны', e);
     }

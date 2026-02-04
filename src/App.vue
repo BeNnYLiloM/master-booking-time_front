@@ -7,9 +7,9 @@ import { debugHelper } from './utils/debugHelper';
 
 const router = useRouter();
 
-// Показывать debug панель всегда (включая production)
+// Показывать debug панель только в dev режиме или по параметру ?debug=true
 const showDebug = computed(() => {
-  return true; // Всегда показываем для отладки
+  return import.meta.env.DEV || window.location.search.includes('debug=true');
 });
 
 // Отслеживаем изменения роута

@@ -9,6 +9,13 @@ const loading = ref(true);
 const error = ref('');
 const statusText = ref('Подключение...');
 
+const retryAuth = () => {
+  error.value = '';
+  loading.value = true;
+  // Перезагружаем страницу для повторной авторизации
+  window.location.reload();
+};
+
 onMounted(async () => {
   // Скрываем все кнопки Telegram на главной странице (роутинг)
   try {
@@ -57,7 +64,20 @@ onMounted(async () => {
     }
   } catch (err: any) {
     console.error(err);
-    error.value = 'Ошибка авторизации. ' + (err.response?.data?.error || err.message);
+    
+    // Очищаем localStorage при ошибке авторизации
+    localStorage.removeItem('userRole');
+    
+    // Формируем понятное сообщение об ошибке
+    let errorMessage = 'Ошибка авторизации.';
+    
+    if (err.response?.status === 401 || err.response?.status === 404) {
+      errorMessage = 'Не удалось авторизоваться. Пожалуйста, закройте и откройте приложение заново.';
+    } else {
+      errorMessage += ' ' + (err.response?.data?.error || err.message);
+    }
+    
+    error.value = errorMessage;
     loading.value = false;
   }
 });
@@ -92,7 +112,15 @@ onMounted(async () => {
       </div>
       
       <h1 class="text-xl font-bold mb-3">MasterBook</h1>
-      <p class="text-tg-hint leading-relaxed text-sm">{{ error }}</p>
+      <p class="text-tg-hint leading-relaxed text-sm mb-6">{{ error }}</p>
+      
+      <!-- Кнопка повторной попытки -->
+      <button 
+        @click="retryAuth"
+        class="btn btn-primary w-full"
+      >
+        🔄 Попробовать снова
+      </button>
       
       <!-- Dev links -->
       <div v-if="error.includes('Dev mode')" class="mt-6 space-y-3">
