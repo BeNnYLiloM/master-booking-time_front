@@ -5,10 +5,6 @@ import api from '../../api';
 import WebApp from '@twa-dev/sdk';
 import { debugHelper } from '../../utils/debugHelper';
 
-console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-console.log('[Dashboard] 🎬 SCRIPT SETUP EXECUTED');
-console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
 const router = useRouter();
 
 // Handlers для Telegram кнопок
@@ -277,138 +273,84 @@ const listTitle = computed(() => {
 
 // Функция загрузки данных
 const loadData = async () => {
-  console.log('[Dashboard] 📥 loadData START');
-  debugHelper.log('info', '[Dashboard] 📥 Начинаю загрузку данных...');
+  debugHelper.log('info', '[Dashboard] 📥 Загружаю данные...');
   loading.value = true;
   
   try {
-    console.log('[Dashboard] Делаю запросы к API...');
-    
     // Загружаем данные (авторизация через middleware)
     const [userRes, appointmentsRes, statsRes] = await Promise.all([
-      api.get('/auth/me').then(res => {
-        console.log('[Dashboard] ✅ /auth/me получен');
-        return res;
-      }).catch(err => {
-        console.error('[Dashboard] ❌ /auth/me ошибка:', err);
-        throw err;
-      }),
-      api.get('/appointments').then(res => {
-        console.log('[Dashboard] ✅ /appointments получен');
-        return res;
-      }).catch(err => {
-        console.error('[Dashboard] ❌ /appointments ошибка:', err);
-        throw err;
-      }),
-      api.get('/master/stats').then(res => {
-        console.log('[Dashboard] ✅ /master/stats получен');
-        return res;
-      }).catch(err => {
-        console.error('[Dashboard] ❌ /master/stats ошибка:', err);
-        throw err;
-      })
+      api.get('/auth/me'),
+      api.get('/appointments'),
+      api.get('/master/stats')
     ]);
-    
-    console.log('[Dashboard] Все запросы выполнены, обрабатываю данные...');
     
     debugHelper.log('info', '[Dashboard] ✅ Данные загружены успешно', {
       user: userRes.data.user?.firstName,
-      appointmentsCount: appointmentsRes.data?.length,
-      stats: statsRes.data
+      appointmentsCount: appointmentsRes.data?.length
     });
     
     user.value = userRes.data.user;
     appointments.value = appointmentsRes.data;
     stats.value = statsRes.data;
     
-    console.log('[Dashboard] Данные записаны в ref');
-    
     try {
-      console.log('[Dashboard] Настраиваю Telegram кнопки...');
-      
-      // Сначала ПОЛНОСТЬЮ очищаем и скрываем кнопки
-      try {
-        if (backButtonHandler) {
-          WebApp.BackButton.offClick(backButtonHandler);
-          backButtonHandler = null;
-        }
-        if (mainButtonHandler) {
-          WebApp.MainButton.offClick(mainButtonHandler);
-          mainButtonHandler = null;
-        }
-        WebApp.BackButton.hide();
-        WebApp.MainButton.hide();
-        console.log('[Dashboard] Старые обработчики очищены');
-      } catch (e) {
-        console.warn('[Dashboard] Ошибка очистки обработчиков:', e);
+      // Полностью очищаем и скрываем старые обработчики
+      if (backButtonHandler) {
+        WebApp.BackButton.offClick(backButtonHandler);
+        backButtonHandler = null;
       }
+      if (mainButtonHandler) {
+        WebApp.MainButton.offClick(mainButtonHandler);
+        mainButtonHandler = null;
+      }
+      WebApp.BackButton.hide();
+      WebApp.MainButton.hide();
       
       // Небольшая задержка перед установкой новых обработчиков
       await new Promise(resolve => setTimeout(resolve, 100));
       
       // Показываем BackButton для возврата на главную
-      backButtonHandler = () => {
-        console.log('[Dashboard] BackButton НАЖАТА');
-        router.push('/');
-      };
+      backButtonHandler = () => router.push('/');
       WebApp.BackButton.onClick(backButtonHandler);
       WebApp.BackButton.show();
-      console.log('[Dashboard] BackButton настроена');
       
       // Показываем MainButton для перехода в настройки
-      mainButtonHandler = () => {
-        console.log('[Dashboard] MainButton НАЖАТА - переход в настройки');
-        router.push('/master/profile');
-      };
+      mainButtonHandler = () => router.push('/master/profile');
       WebApp.MainButton.onClick(mainButtonHandler);
       WebApp.MainButton.setText('⚙️ Настройки');
       WebApp.MainButton.show();
-      console.log('[Dashboard] MainButton настроена');
       
-      console.log('[Dashboard] Telegram кнопки настроены');
       debugHelper.log('info', '[Dashboard] 🔘 Telegram кнопки настроены');
     } catch (e) {
-      console.warn('[Dashboard] Telegram кнопки недоступны:', e);
       debugHelper.log('warn', '[Dashboard] Telegram кнопки недоступны', e);
     }
   } catch (e) {
-    console.error('[Dashboard] ❌❌❌ КРИТИЧЕСКАЯ ОШИБКА:', e);
     debugHelper.log('error', '[Dashboard] ❌ Ошибка загрузки данных', e);
   } finally {
     loading.value = false;
-    console.log('[Dashboard] 📥 loadData END');
   }
 };
 
 onMounted(async () => {
+  debugHelper.log('info', '[Dashboard] 🚀 onMounted вызван', { 
+    route: router.currentRoute.value.path,
+    timestamp: new Date().toISOString()
+  });
+  
+  // Прокручиваем страницу наверх
+  window.scrollTo({ top: 0, behavior: 'instant' });
+  
+  // Очищаем все предыдущие обработчики
   try {
-    console.log('[Dashboard] onMounted START');
-    debugHelper.log('info', '[Dashboard] 🚀 onMounted вызван', { 
-      route: router.currentRoute.value.path,
-      timestamp: new Date().toISOString()
-    });
-    
-    // Прокручиваем страницу наверх
-    window.scrollTo({ top: 0, behavior: 'instant' });
-    
-    // Очищаем все предыдущие обработчики
-    try {
-      WebApp.BackButton.hide();
-      WebApp.MainButton.hide();
-    } catch {}
-    
-    // ВСЕГДА загружаем данные при монтировании
-    await loadData();
-    
-    console.log('[Dashboard] onMounted END');
-  } catch (error) {
-    console.error('[Dashboard] ОШИБКА в onMounted:', error);
-    debugHelper.log('error', '[Dashboard] ❌ Критическая ошибка в onMounted', error);
-  }
+    WebApp.BackButton.hide();
+    WebApp.MainButton.hide();
+  } catch {}
+  
+  // ВСЕГДА загружаем данные при монтировании
+  await loadData();
 });
 
 onBeforeUnmount(() => {
-  console.log('[Dashboard] 💀 onBeforeUnmount');
   debugHelper.log('info', '[Dashboard] 💀 Компонент размонтируется');
   
   try {
@@ -428,11 +370,6 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="p-4 pb-24 animate-fade-in">
-    <!-- DEBUG: Проверка рендеринга -->
-    <div style="position: fixed; top: 0; left: 0; background: red; color: white; padding: 10px; z-index: 9999;">
-      🔴 DASHBOARD ОТРЕНДЕРЕН
-    </div>
-    
     <!-- Header -->
     <div class="mb-6">
       <h1 class="text-2xl font-bold mb-1">

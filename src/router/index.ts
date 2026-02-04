@@ -34,7 +34,6 @@ const router = createRouter({
 
 // Навигационный guard для предотвращения повторной авторизации
 router.beforeEach((to, from, next) => {
-  console.log(`[Router Guard] ${from.path} → ${to.path}`);
   debugHelper.log('info', `[Router] 🔀 Guard: ${from.path} → ${to.path}`, {
     toName: to.name,
     fromName: from.name,
@@ -64,7 +63,6 @@ router.beforeEach((to, from, next) => {
 
 // Отслеживаем завершение навигации
 router.afterEach((to, from) => {
-  console.log(`[Router afterEach] Навигация завершена: ${from.path} → ${to.path}`);
   debugHelper.log('info', `[Router] ✅ afterEach: навигация завершена ${from.path} → ${to.path}`);
 });
 

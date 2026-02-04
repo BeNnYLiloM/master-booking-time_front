@@ -69,8 +69,10 @@ onMounted(() => {
 <template>
   <div class="min-h-screen min-h-dvh">
     <RouterView v-slot="{ Component, route }">
-      <!-- ВРЕМЕННО УБРАЛ TRANSITION ДЛЯ ОТЛАДКИ -->
-      <component :is="Component" :key="route.path" />
+      <!-- Используем mode="default" вместо "out-in" чтобы компоненты создавались сразу -->
+      <transition name="page">
+        <component :is="Component" :key="route.path" />
+      </transition>
     </RouterView>
     
     <!-- Debug Panel - только в dev режиме или если в URL есть ?debug=true -->
