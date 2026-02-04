@@ -14,11 +14,16 @@ const showDebug = computed(() => {
 
 // Отслеживаем изменения роута
 watch(() => router.currentRoute.value.path, (newPath, oldPath) => {
-  debugHelper.log('info', `[App] Роут изменился: ${oldPath} → ${newPath}`);
+  debugHelper.log('info', `[App] 🔄 Роут изменился: ${oldPath} → ${newPath}`, {
+    timestamp: new Date().toISOString()
+  });
 });
 
 onMounted(() => {
-  debugHelper.log('info', '[App] Приложение запущено');
+  debugHelper.log('info', '[App] 🚀 Приложение запущено', {
+    initialRoute: router.currentRoute.value.path,
+    timestamp: new Date().toISOString()
+  });
   
   try {
     // Обработка start_param для deep link (ссылка для клиентов)

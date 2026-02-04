@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import api from '../../api';
 import WebApp from '@twa-dev/sdk';
@@ -273,7 +273,7 @@ const listTitle = computed(() => {
 
 // Функция загрузки данных
 const loadData = async () => {
-  debugHelper.log('info', '[Dashboard] Загружаю данные...');
+  debugHelper.log('info', '[Dashboard] 📥 Начинаю загрузку данных...');
   loading.value = true;
   
   try {
@@ -284,12 +284,25 @@ const loadData = async () => {
       api.get('/master/stats')
     ]);
     
-    debugHelper.log('info', '[Dashboard] Данные загружены успешно');
+    debugHelper.log('info', '[Dashboard] ✅ Данные загружены успешно', {
+      user: userRes.data.user?.firstName,
+      appointmentsCount: appointmentsRes.data?.length,
+      stats: statsRes.data
+    });
+    
     user.value = userRes.data.user;
     appointments.value = appointmentsRes.data;
     stats.value = statsRes.data;
     
     try {
+      // Очищаем старые обработчики
+      if (backButtonHandler) {
+        WebApp.BackButton.offClick(backButtonHandler);
+      }
+      if (mainButtonHandler) {
+        WebApp.MainButton.offClick(mainButtonHandler);
+      }
+      
       // Показываем BackButton для возврата на главную
       backButtonHandler = () => router.push('/');
       WebApp.BackButton.show();
@@ -300,30 +313,23 @@ const loadData = async () => {
       WebApp.MainButton.setText('⚙️ Настройки');
       WebApp.MainButton.onClick(mainButtonHandler);
       WebApp.MainButton.show();
-    } catch {}
+      
+      debugHelper.log('info', '[Dashboard] 🔘 Telegram кнопки настроены');
+    } catch (e) {
+      debugHelper.log('warn', '[Dashboard] Telegram кнопки недоступны', e);
+    }
   } catch (e) {
-    debugHelper.log('error', '[Dashboard] Ошибка загрузки данных', e);
+    debugHelper.log('error', '[Dashboard] ❌ Ошибка загрузки данных', e);
   } finally {
     loading.value = false;
   }
 };
 
-// Следим за роутом - перезагружаем данные при возврате на дашборд
-watch(
-  () => router.currentRoute.value.path,
-  (newPath, oldPath) => {
-    debugHelper.log('info', `[Dashboard] Роут изменился: ${oldPath} → ${newPath}`);
-    
-    // Если вернулись на дашборд из другой страницы - перезагружаем
-    if (newPath === '/master/dashboard' && oldPath && oldPath !== '/master/dashboard') {
-      debugHelper.log('info', '[Dashboard] Возврат на дашборд - перезагружаю данные');
-      loadData();
-    }
-  }
-);
-
 onMounted(async () => {
-  debugHelper.log('info', '[Dashboard] onMounted вызван', { route: router.currentRoute.value.path });
+  debugHelper.log('info', '[Dashboard] 🚀 onMounted вызван', { 
+    route: router.currentRoute.value.path,
+    timestamp: new Date().toISOString()
+  });
   
   // Прокручиваем страницу наверх
   window.scrollTo({ top: 0, behavior: 'instant' });
@@ -334,7 +340,7 @@ onMounted(async () => {
     WebApp.MainButton.hide();
   } catch {}
   
-  // Загружаем данные
+  // ВСЕГДА загружаем данные при монтировании
   await loadData();
 });
 

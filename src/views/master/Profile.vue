@@ -251,11 +251,20 @@ const fillWeekdays = () => {
 
 // Функция возврата на Dashboard
 const goToDashboard = () => {
-  debugHelper.log('info', '[Profile] Возврат на Dashboard');
+  debugHelper.log('info', '[Profile] 🔙 Возврат на Dashboard', {
+    from: router.currentRoute.value.path,
+    to: '/master/dashboard',
+    timestamp: new Date().toISOString()
+  });
   router.push('/master/dashboard');
 };
 
 onMounted(async () => {
+  debugHelper.log('info', '[Profile] 🚀 onMounted вызван', {
+    route: router.currentRoute.value.path,
+    timestamp: new Date().toISOString()
+  });
+  
   // Прокручиваем страницу наверх
   window.scrollTo({ top: 0, behavior: 'instant' });
   
