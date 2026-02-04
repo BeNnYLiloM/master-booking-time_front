@@ -7,6 +7,10 @@ import YandexMap from '../../components/YandexMap.vue';
 import ProxyAddressSearch from '../../components/ProxyAddressSearch.vue';
 
 const router = useRouter();
+
+// Handler для BackButton
+let backButtonHandler: (() => void) | null = null;
+
 const profile = ref({
   displayName: '',
   description: '',
@@ -249,8 +253,9 @@ const fillWeekdays = () => {
 
 onMounted(async () => {
   try {
+    backButtonHandler = () => router.push('/master/dashboard');
     WebApp.BackButton.show();
-    WebApp.BackButton.onClick(() => router.push('/master/dashboard'));
+    WebApp.BackButton.onClick(backButtonHandler);
   } catch {}
   
   try {
@@ -296,6 +301,10 @@ onMounted(async () => {
 
 onUnmounted(() => {
   try {
+    if (backButtonHandler) {
+      WebApp.BackButton.offClick(backButtonHandler);
+      backButtonHandler = null;
+    }
     WebApp.BackButton.hide();
   } catch {}
 });
@@ -1248,33 +1257,48 @@ const updateCategory = async () => {
           </div>
         </div>
         <button 
-          v-if="!showAddCategory && !editingCategory"
-          @click="showAddCategory = true"
-          class="btn btn-accent px-4 py-2 text-sm"
+          v-if="!editingCategory"
+          @click="showAddCategory = !showAddCategory"
+          class="w-10 h-10 rounded-xl bg-purple-500/15 flex items-center justify-center transition-transform"
+          :class="{ 'rotate-45': showAddCategory }"
         >
-          + Добавить
+          <svg class="w-5 h-5 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
         </button>
       </div>
 
       <!-- Add Category Form -->
-      <div v-if="showAddCategory" class="bg-accent/5 rounded-xl p-4 mb-4">
-        <h3 class="font-medium mb-3">Новая категория</h3>
-        <div class="space-y-3">
+      <transition name="slide">
+        <div v-if="showAddCategory" class="mb-4 p-3 rounded-xl bg-tg-bg">
           <div>
             <label class="text-xs text-tg-hint mb-1.5 block">Название</label>
             <input 
               v-model="newCategory.name" 
               placeholder="Например: Ногтевой сервис"
-              class="w-full p-3 rounded-xl"
+              class="w-full p-3 rounded-xl mb-3"
             />
           </div>
           
-          <div>
+          <div class="mb-3">
             <label class="text-xs text-tg-hint mb-1.5 block">Изображение (опционально)</label>
-            <div v-if="categoryImagePreview" class="mb-2 relative">
-              <img :src="categoryImagePreview" class="w-full h-32 object-cover rounded-xl" />
+            <div v-if="categoryImagePreview" class="mb-2">
+              <div class="relative w-full h-40 rounded-xl overflow-hidden bg-tg-secondary-bg">
+                <img 
+                  :src="categoryImagePreview" 
+                  class="w-full h-full object-cover" 
+                />
+                <button 
+                  @click="categoryImagePreview = null; newCategory.imageFile = null"
+                  class="absolute top-2 right-2 w-8 h-8 rounded-lg bg-danger/90 flex items-center justify-center text-white"
+                >
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             </div>
-            <label class="btn bg-tg-secondary-bg text-sm py-2 w-full cursor-pointer">
+            <label class="btn bg-purple-500/15 text-purple-500 text-sm py-2 cursor-pointer w-full">
               <svg class="w-4 h-4 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
@@ -1287,7 +1311,7 @@ const updateCategory = async () => {
             <button 
               @click="addCategory"
               :disabled="!newCategory.name.trim() || uploadingCategory"
-              class="flex-1 btn bg-success text-white"
+              class="flex-1 btn btn-accent"
             >
               {{ uploadingCategory ? 'Создание...' : 'Создать' }}
             </button>
@@ -1299,26 +1323,38 @@ const updateCategory = async () => {
             </button>
           </div>
         </div>
-      </div>
+      </transition>
 
       <!-- Edit Category Form -->
-      <div v-if="editingCategory" class="bg-blue-500/5 rounded-xl p-4 mb-4">
-        <h3 class="font-medium mb-3">Редактирование категории</h3>
-        <div class="space-y-3">
+      <transition name="slide">
+        <div v-if="editingCategory" class="mb-4 p-3 rounded-xl bg-tg-bg">
           <div>
             <label class="text-xs text-tg-hint mb-1.5 block">Название</label>
             <input 
               v-model="editingCategory.name" 
-              class="w-full p-3 rounded-xl"
+              class="w-full p-3 rounded-xl mb-3"
             />
           </div>
           
-          <div>
+          <div class="mb-3">
             <label class="text-xs text-tg-hint mb-1.5 block">Изображение</label>
-            <div v-if="editCategoryImagePreview" class="mb-2 relative">
-              <img :src="editCategoryImagePreview" class="w-full h-32 object-cover rounded-xl" />
+            <div v-if="editCategoryImagePreview" class="mb-2">
+              <div class="relative w-full h-40 rounded-xl overflow-hidden bg-tg-secondary-bg">
+                <img 
+                  :src="editCategoryImagePreview" 
+                  class="w-full h-full object-cover" 
+                />
+                <button 
+                  @click="editCategoryImagePreview = null; editingCategory!.imageFile = null"
+                  class="absolute top-2 right-2 w-8 h-8 rounded-lg bg-danger/90 flex items-center justify-center text-white"
+                >
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             </div>
-            <label class="btn bg-tg-secondary-bg text-sm py-2 w-full cursor-pointer">
+            <label class="btn bg-purple-500/15 text-purple-500 text-sm py-2 cursor-pointer w-full">
               <svg class="w-4 h-4 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
@@ -1331,7 +1367,7 @@ const updateCategory = async () => {
             <button 
               @click="updateCategory"
               :disabled="!editingCategory.name.trim()"
-              class="flex-1 btn bg-success text-white"
+              class="flex-1 btn btn-accent"
             >
               Сохранить
             </button>
@@ -1343,7 +1379,7 @@ const updateCategory = async () => {
             </button>
           </div>
         </div>
-      </div>
+      </transition>
 
       <!-- Categories List -->
       <div v-if="categories.length > 0" class="space-y-2">
