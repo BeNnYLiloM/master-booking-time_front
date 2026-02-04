@@ -203,6 +203,9 @@ const goToBooking = (masterId: number) => {
 };
 
 onMounted(async () => {
+  // Прокручиваем страницу наверх
+  window.scrollTo({ top: 0, behavior: 'instant' });
+  
   try {
     // Авторизация
     const authRes = await api.post('/auth/login', { initData: WebApp.initData || '' });

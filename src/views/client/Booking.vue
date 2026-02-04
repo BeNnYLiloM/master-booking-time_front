@@ -139,6 +139,9 @@ const backToCategories = () => {
 };
 
 onMounted(async () => {
+  // Прокручиваем страницу наверх
+  window.scrollTo({ top: 0, behavior: 'instant' });
+  
   try {
     // Проверяем избранное
     isFavorite.value = favoritesService.isFavorite(Number(masterId));

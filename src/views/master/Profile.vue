@@ -248,7 +248,21 @@ const fillWeekdays = () => {
   }
 };
 
+// Функция возврата на Dashboard
+const goToDashboard = async () => {
+  try {
+    console.log('Navigating to dashboard...');
+    await router.push('/master/dashboard');
+    console.log('Navigation completed');
+  } catch (error) {
+    console.error('Navigation error:', error);
+  }
+};
+
 onMounted(async () => {
+  // Прокручиваем страницу наверх
+  window.scrollTo({ top: 0, behavior: 'instant' });
+  
   try {
     // Скрываем все Telegram кнопки (используем обычную кнопку в UI)
     WebApp.MainButton.hide();
@@ -848,7 +862,7 @@ const updateCategory = async () => {
     <!-- Header -->
     <div class="flex items-center gap-3 mb-6">
       <button 
-        @click="router.push('/master/dashboard')" 
+        @click="goToDashboard" 
         class="w-10 h-10 rounded-xl bg-tg-secondary-bg flex items-center justify-center"
       >
         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

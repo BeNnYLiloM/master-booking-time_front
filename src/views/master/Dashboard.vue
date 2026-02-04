@@ -271,6 +271,9 @@ const listTitle = computed(() => {
 });
 
 onMounted(async () => {
+  // Прокручиваем страницу наверх
+  window.scrollTo({ top: 0, behavior: 'instant' });
+  
   // Очищаем все предыдущие обработчики
   try {
     WebApp.BackButton.hide();
