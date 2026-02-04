@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import api from '../api'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -30,6 +31,27 @@ const router = createRouter({
     }
   ]
 })
+
+// Навигационный guard для предотвращения повторной авторизации
+router.beforeEach((to, from, next) => {
+  // Если идем на Home, но пришли с другой страницы (не первый вход)
+  // и роль уже есть - перенаправляем сразу на нужную страницу
+  if (to.path === '/' && from.path !== '/') {
+    const userRole = localStorage.getItem('userRole');
+    
+    if (userRole) {
+      // Уже авторизованы - перенаправляем на нужную страницу
+      if (userRole === 'master') {
+        next('/master/dashboard');
+      } else {
+        next('/client/appointments');
+      }
+      return;
+    }
+  }
+  
+  next();
+});
 
 export default router
 

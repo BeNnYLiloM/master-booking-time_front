@@ -35,6 +35,9 @@ onMounted(async () => {
     const response = await api.post('/auth/login', { initData: initData || '' });
     const user = response.data.user;
 
+    // Сохраняем роль пользователя для навигационного guard
+    localStorage.setItem('userRole', user.role);
+
     statusText.value = 'Загрузка...';
     
     // Автороутинг по роли
