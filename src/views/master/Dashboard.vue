@@ -281,14 +281,14 @@ onMounted(async () => {
   } catch {}
   
   try {
-    const authRes = await api.post('/auth/login', { initData: WebApp.initData || '' });
-    user.value = authRes.data.user;
-
-    const [appointmentsRes, statsRes] = await Promise.all([
+    // Загружаем данные (авторизация через middleware)
+    const [userRes, appointmentsRes, statsRes] = await Promise.all([
+      api.get('/auth/me'),
       api.get('/appointments'),
       api.get('/master/stats')
     ]);
     
+    user.value = userRes.data.user;
     appointments.value = appointmentsRes.data;
     stats.value = statsRes.data;
     
