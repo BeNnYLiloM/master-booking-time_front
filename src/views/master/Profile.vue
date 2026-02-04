@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
 import api from '../../api';
 import WebApp from '@twa-dev/sdk';
 import { useRouter } from 'vue-router';
@@ -253,6 +253,9 @@ const fillWeekdays = () => {
 
 onMounted(async () => {
   try {
+    // Скрываем MainButton (он был на Dashboard)
+    WebApp.MainButton.hide();
+    
     backButtonHandler = () => router.push('/master/dashboard');
     WebApp.BackButton.show();
     WebApp.BackButton.onClick(backButtonHandler);
@@ -299,7 +302,7 @@ onMounted(async () => {
   }
 });
 
-onUnmounted(() => {
+onBeforeUnmount(() => {
   try {
     if (backButtonHandler) {
       WebApp.BackButton.offClick(backButtonHandler);

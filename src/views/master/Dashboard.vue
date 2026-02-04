@@ -271,6 +271,12 @@ const listTitle = computed(() => {
 });
 
 onMounted(async () => {
+  // Очищаем все предыдущие обработчики
+  try {
+    WebApp.BackButton.hide();
+    WebApp.MainButton.hide();
+  } catch {}
+  
   try {
     const authRes = await api.post('/auth/login', { initData: WebApp.initData || '' });
     user.value = authRes.data.user;
