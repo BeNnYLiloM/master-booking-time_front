@@ -6,6 +6,10 @@ import WebApp from '@twa-dev/sdk';
 import { favoritesService } from '../../utils/favorites';
 
 const router = useRouter();
+
+// Handler для BackButton
+let backButtonHandler: (() => void) | null = null;
+
 const appointments = ref<any[]>([]);
 const loading = ref(true);
 const cancellingId = ref<number | null>(null);
@@ -213,8 +217,9 @@ onMounted(async () => {
     
     // Показываем BackButton для возврата на Dashboard
     try {
+      backButtonHandler = () => router.push('/master/dashboard');
       WebApp.BackButton.show();
-      WebApp.BackButton.onClick(() => router.push('/master/dashboard'));
+      WebApp.BackButton.onClick(backButtonHandler);
     } catch {}
   } catch (e) {
     console.error(e);
@@ -225,6 +230,10 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   try {
+    if (backButtonHandler) {
+      WebApp.BackButton.offClick(backButtonHandler);
+      backButtonHandler = null;
+    }
     WebApp.BackButton.hide();
   } catch {}
 });

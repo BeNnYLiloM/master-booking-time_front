@@ -5,6 +5,11 @@ import api from '../../api';
 import WebApp from '@twa-dev/sdk';
 
 const router = useRouter();
+
+// Handlers для Telegram кнопок
+let backButtonHandler: (() => void) | null = null;
+let mainButtonHandler: (() => void) | null = null;
+
 const appointments = ref<any[]>([]);
 const user = ref<any>(null);
 const loading = ref(true);
@@ -280,12 +285,14 @@ onMounted(async () => {
     
     try {
       // Показываем BackButton для возврата на главную
+      backButtonHandler = () => router.push('/');
       WebApp.BackButton.show();
-      WebApp.BackButton.onClick(() => router.push('/'));
+      WebApp.BackButton.onClick(backButtonHandler);
       
       // Показываем MainButton для перехода в настройки
+      mainButtonHandler = () => router.push('/master/profile');
       WebApp.MainButton.setText('⚙️ Настройки');
-      WebApp.MainButton.onClick(() => router.push('/master/profile'));
+      WebApp.MainButton.onClick(mainButtonHandler);
       WebApp.MainButton.show();
     } catch {}
   } catch (e) {
@@ -297,6 +304,14 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   try {
+    if (backButtonHandler) {
+      WebApp.BackButton.offClick(backButtonHandler);
+      backButtonHandler = null;
+    }
+    if (mainButtonHandler) {
+      WebApp.MainButton.offClick(mainButtonHandler);
+      mainButtonHandler = null;
+    }
     WebApp.MainButton.hide();
     WebApp.BackButton.hide();
   } catch {}
