@@ -277,16 +277,39 @@ const listTitle = computed(() => {
 
 // Функция загрузки данных
 const loadData = async () => {
+  console.log('[Dashboard] 📥 loadData START');
   debugHelper.log('info', '[Dashboard] 📥 Начинаю загрузку данных...');
   loading.value = true;
   
   try {
+    console.log('[Dashboard] Делаю запросы к API...');
+    
     // Загружаем данные (авторизация через middleware)
     const [userRes, appointmentsRes, statsRes] = await Promise.all([
-      api.get('/auth/me'),
-      api.get('/appointments'),
-      api.get('/master/stats')
+      api.get('/auth/me').then(res => {
+        console.log('[Dashboard] ✅ /auth/me получен');
+        return res;
+      }).catch(err => {
+        console.error('[Dashboard] ❌ /auth/me ошибка:', err);
+        throw err;
+      }),
+      api.get('/appointments').then(res => {
+        console.log('[Dashboard] ✅ /appointments получен');
+        return res;
+      }).catch(err => {
+        console.error('[Dashboard] ❌ /appointments ошибка:', err);
+        throw err;
+      }),
+      api.get('/master/stats').then(res => {
+        console.log('[Dashboard] ✅ /master/stats получен');
+        return res;
+      }).catch(err => {
+        console.error('[Dashboard] ❌ /master/stats ошибка:', err);
+        throw err;
+      })
     ]);
+    
+    console.log('[Dashboard] Все запросы выполнены, обрабатываю данные...');
     
     debugHelper.log('info', '[Dashboard] ✅ Данные загружены успешно', {
       user: userRes.data.user?.firstName,
@@ -297,6 +320,8 @@ const loadData = async () => {
     user.value = userRes.data.user;
     appointments.value = appointmentsRes.data;
     stats.value = statsRes.data;
+    
+    console.log('[Dashboard] Данные записаны в ref');
     
     try {
       // Очищаем старые обработчики
@@ -318,14 +343,18 @@ const loadData = async () => {
       WebApp.MainButton.onClick(mainButtonHandler);
       WebApp.MainButton.show();
       
+      console.log('[Dashboard] Telegram кнопки настроены');
       debugHelper.log('info', '[Dashboard] 🔘 Telegram кнопки настроены');
     } catch (e) {
+      console.warn('[Dashboard] Telegram кнопки недоступны:', e);
       debugHelper.log('warn', '[Dashboard] Telegram кнопки недоступны', e);
     }
   } catch (e) {
+    console.error('[Dashboard] ❌❌❌ КРИТИЧЕСКАЯ ОШИБКА:', e);
     debugHelper.log('error', '[Dashboard] ❌ Ошибка загрузки данных', e);
   } finally {
     loading.value = false;
+    console.log('[Dashboard] 📥 loadData END');
   }
 };
 
@@ -377,6 +406,11 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="p-4 pb-24 animate-fade-in">
+    <!-- DEBUG: Проверка рендеринга -->
+    <div style="position: fixed; top: 0; left: 0; background: red; color: white; padding: 10px; z-index: 9999;">
+      🔴 DASHBOARD ОТРЕНДЕРЕН
+    </div>
+    
     <!-- Header -->
     <div class="mb-6">
       <h1 class="text-2xl font-bold mb-1">

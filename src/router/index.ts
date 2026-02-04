@@ -62,5 +62,17 @@ router.beforeEach((to, from, next) => {
   next();
 });
 
+// Отслеживаем завершение навигации
+router.afterEach((to, from) => {
+  console.log(`[Router afterEach] Навигация завершена: ${from.path} → ${to.path}`);
+  debugHelper.log('info', `[Router] ✅ afterEach: навигация завершена ${from.path} → ${to.path}`);
+});
+
+// Отслеживаем ошибки навигации
+router.onError((error) => {
+  console.error('[Router] ❌ Ошибка навигации:', error);
+  debugHelper.log('error', '[Router] ❌ Ошибка навигации', error);
+});
+
 export default router
 
