@@ -308,13 +308,19 @@ const loadData = async () => {
   }
 };
 
-// Следим за изменением роута и перезагружаем данные
-watch(() => router.currentRoute.value.path, (newPath) => {
-  if (newPath === '/master/dashboard') {
-    debugHelper.log('info', '[Dashboard] Роут изменился, перезагружаю данные');
-    loadData();
+// Следим за роутом - перезагружаем данные при возврате на дашборд
+watch(
+  () => router.currentRoute.value.path,
+  (newPath, oldPath) => {
+    debugHelper.log('info', `[Dashboard] Роут изменился: ${oldPath} → ${newPath}`);
+    
+    // Если вернулись на дашборд из другой страницы - перезагружаем
+    if (newPath === '/master/dashboard' && oldPath && oldPath !== '/master/dashboard') {
+      debugHelper.log('info', '[Dashboard] Возврат на дашборд - перезагружаю данные');
+      loadData();
+    }
   }
-});
+);
 
 onMounted(async () => {
   debugHelper.log('info', '[Dashboard] onMounted вызван', { route: router.currentRoute.value.path });

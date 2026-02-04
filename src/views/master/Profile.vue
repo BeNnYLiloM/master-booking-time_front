@@ -250,23 +250,9 @@ const fillWeekdays = () => {
 };
 
 // Функция возврата на Dashboard
-const goToDashboard = async () => {
-  try {
-    debugHelper.log('info', '[Profile] 🔴 КНОПКА НАЖАТА!');
-    
-    // Показываем alert для теста
-    try {
-      WebApp.showAlert('Нажата кнопка Назад!');
-    } catch {
-      alert('Нажата кнопка Назад!');
-    }
-    
-    debugHelper.log('info', '[Profile] Переход на Dashboard', { from: router.currentRoute.value.path });
-    await router.push('/master/dashboard');
-    debugHelper.log('info', '[Profile] Переход завершен');
-  } catch (error) {
-    debugHelper.log('error', '[Profile] Ошибка навигации', error);
-  }
+const goToDashboard = () => {
+  debugHelper.log('info', '[Profile] Возврат на Dashboard');
+  router.push('/master/dashboard');
 };
 
 onMounted(async () => {
@@ -870,31 +856,18 @@ const updateCategory = async () => {
 <template>
   <div class="p-4 pb-24 animate-fade-in">
     <!-- Header -->
-    <div class="flex flex-col gap-3 mb-6">
-      <!-- ТЕСТОВАЯ БОЛЬШАЯ КНОПКА -->
+    <div class="flex items-center gap-3 mb-6">
       <button 
         @click="goToDashboard"
-        class="w-full py-4 rounded-xl bg-red-500 text-white font-bold text-lg active:scale-95 transition-transform"
+        class="w-10 h-10 rounded-xl bg-tg-secondary-bg flex items-center justify-center active:scale-95 transition-transform"
       >
-        🔴 ТЕСТ: ВЕРНУТЬСЯ НА ДАШБОРД
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
       </button>
-      
-      <!-- Оригинальный хедер -->
-      <div class="flex items-center gap-3">
-        <button 
-          @click="goToDashboard"
-          @touchstart="() => debugHelper.log('info', '[Profile] Кнопка touchstart')"
-          @mousedown="() => debugHelper.log('info', '[Profile] Кнопка mousedown')"
-          class="w-10 h-10 rounded-xl bg-tg-secondary-bg flex items-center justify-center active:scale-95 transition-transform"
-        >
-          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-        <div>
-          <h1 class="text-xl font-bold">Настройки</h1>
-          <p class="text-xs text-tg-hint">Расписание и услуги</p>
-        </div>
+      <div>
+        <h1 class="text-xl font-bold">Настройки</h1>
+        <p class="text-xs text-tg-hint">Расписание и услуги</p>
       </div>
     </div>
 
