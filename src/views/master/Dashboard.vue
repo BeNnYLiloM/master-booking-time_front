@@ -3,6 +3,7 @@ import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import api from '../../api';
 import WebApp from '@twa-dev/sdk';
+import { debugHelper } from '../../utils/debugHelper';
 
 const router = useRouter();
 
@@ -271,6 +272,8 @@ const listTitle = computed(() => {
 });
 
 onMounted(async () => {
+  debugHelper.log('info', '[Dashboard] onMounted вызван', { route: router.currentRoute.value.path });
+  
   // Прокручиваем страницу наверх
   window.scrollTo({ top: 0, behavior: 'instant' });
   
@@ -281,6 +284,7 @@ onMounted(async () => {
   } catch {}
   
   try {
+    debugHelper.log('info', '[Dashboard] Загружаю данные...');
     // Загружаем данные (авторизация через middleware)
     const [userRes, appointmentsRes, statsRes] = await Promise.all([
       api.get('/auth/me'),
@@ -288,6 +292,7 @@ onMounted(async () => {
       api.get('/master/stats')
     ]);
     
+    debugHelper.log('info', '[Dashboard] Данные загружены успешно');
     user.value = userRes.data.user;
     appointments.value = appointmentsRes.data;
     stats.value = statsRes.data;
@@ -305,7 +310,7 @@ onMounted(async () => {
       WebApp.MainButton.show();
     } catch {}
   } catch (e) {
-    console.error(e);
+    debugHelper.log('error', '[Dashboard] Ошибка загрузки данных', e);
   } finally {
     loading.value = false;
   }

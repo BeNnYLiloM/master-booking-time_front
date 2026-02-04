@@ -1,17 +1,25 @@
 <script setup lang="ts">
 import { RouterView, useRouter } from 'vue-router';
-import { onMounted, computed } from 'vue';
+import { onMounted, computed, watch } from 'vue';
 import WebApp from '@twa-dev/sdk';
 import DebugPanel from './components/DebugPanel.vue';
+import { debugHelper } from './utils/debugHelper';
 
 const router = useRouter();
 
-// Показывать debug панель в dev или если есть ?debug=true
+// Показывать debug панель всегда (включая production)
 const showDebug = computed(() => {
-  return import.meta.env.DEV || window.location.search.includes('debug=true');
+  return true; // Всегда показываем для отладки
+});
+
+// Отслеживаем изменения роута
+watch(() => router.currentRoute.value.path, (newPath, oldPath) => {
+  debugHelper.log('info', `[App] Роут изменился: ${oldPath} → ${newPath}`);
 });
 
 onMounted(() => {
+  debugHelper.log('info', '[App] Приложение запущено');
+  
   try {
     // Обработка start_param для deep link (ссылка для клиентов)
     const startParam = WebApp.initDataUnsafe?.start_param;

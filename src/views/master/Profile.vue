@@ -5,6 +5,7 @@ import WebApp from '@twa-dev/sdk';
 import { useRouter } from 'vue-router';
 import YandexMap from '../../components/YandexMap.vue';
 import ProxyAddressSearch from '../../components/ProxyAddressSearch.vue';
+import { debugHelper } from '../../utils/debugHelper';
 
 const router = useRouter();
 
@@ -251,11 +252,11 @@ const fillWeekdays = () => {
 // Функция возврата на Dashboard
 const goToDashboard = async () => {
   try {
-    console.log('Navigating to dashboard...');
+    debugHelper.log('info', '[Profile] Переход на Dashboard', { from: router.currentRoute.value.path });
     await router.push('/master/dashboard');
-    console.log('Navigation completed');
+    debugHelper.log('info', '[Profile] Переход завершен');
   } catch (error) {
-    console.error('Navigation error:', error);
+    debugHelper.log('error', '[Profile] Ошибка навигации', error);
   }
 };
 
