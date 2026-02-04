@@ -8,9 +8,6 @@ import ProxyAddressSearch from '../../components/ProxyAddressSearch.vue';
 
 const router = useRouter();
 
-// Handler для BackButton
-let backButtonHandler: (() => void) | null = null;
-
 const profile = ref({
   displayName: '',
   description: '',
@@ -253,12 +250,9 @@ const fillWeekdays = () => {
 
 onMounted(async () => {
   try {
-    // Скрываем MainButton (он был на Dashboard)
+    // Скрываем все Telegram кнопки (используем обычную кнопку в UI)
     WebApp.MainButton.hide();
-    
-    backButtonHandler = () => router.push('/master/dashboard');
-    WebApp.BackButton.show();
-    WebApp.BackButton.onClick(backButtonHandler);
+    WebApp.BackButton.hide();
   } catch {}
   
   try {
@@ -303,13 +297,7 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
-  try {
-    if (backButtonHandler) {
-      WebApp.BackButton.offClick(backButtonHandler);
-      backButtonHandler = null;
-    }
-    WebApp.BackButton.hide();
-  } catch {}
+  // Ничего не делаем - используем обычную кнопку в UI
 });
 
 // Обработчики для карты и адреса
