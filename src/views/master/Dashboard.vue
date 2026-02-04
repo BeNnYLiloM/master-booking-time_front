@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import api from '../../api';
 import WebApp from '@twa-dev/sdk';
@@ -279,6 +279,11 @@ onMounted(async () => {
     stats.value = statsRes.data;
     
     try {
+      // Показываем BackButton для возврата на главную
+      WebApp.BackButton.show();
+      WebApp.BackButton.onClick(() => router.push('/'));
+      
+      // Показываем MainButton для перехода в настройки
       WebApp.MainButton.setText('⚙️ Настройки');
       WebApp.MainButton.onClick(() => router.push('/master/profile'));
       WebApp.MainButton.show();
@@ -288,6 +293,13 @@ onMounted(async () => {
   } finally {
     loading.value = false;
   }
+});
+
+onBeforeUnmount(() => {
+  try {
+    WebApp.MainButton.hide();
+    WebApp.BackButton.hide();
+  } catch {}
 });
 </script>
 

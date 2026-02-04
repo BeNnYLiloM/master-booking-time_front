@@ -10,6 +10,12 @@ const error = ref('');
 const statusText = ref('Подключение...');
 
 onMounted(async () => {
+  // Скрываем все кнопки Telegram на главной странице (роутинг)
+  try {
+    WebApp.MainButton.hide();
+    WebApp.BackButton.hide();
+  } catch {}
+  
   try {
     try {
       WebApp.expand();

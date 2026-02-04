@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import api from '../../api';
 import WebApp from '@twa-dev/sdk';
@@ -210,11 +210,23 @@ onMounted(async () => {
     
     // Загружаем избранное
     await loadFavorites();
+    
+    // Показываем BackButton для возврата на Dashboard
+    try {
+      WebApp.BackButton.show();
+      WebApp.BackButton.onClick(() => router.push('/master/dashboard'));
+    } catch {}
   } catch (e) {
     console.error(e);
   } finally {
     loading.value = false;
   }
+});
+
+onBeforeUnmount(() => {
+  try {
+    WebApp.BackButton.hide();
+  } catch {}
 });
 </script>
 
