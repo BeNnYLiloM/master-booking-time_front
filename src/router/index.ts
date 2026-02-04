@@ -1,5 +1,4 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import api from '../api'
 
 const router = createRouter({
   history: createWebHistory(),
