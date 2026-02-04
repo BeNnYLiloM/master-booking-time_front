@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import api from '../../api';
 import WebApp from '@twa-dev/sdk';
@@ -271,20 +271,12 @@ const listTitle = computed(() => {
   }
 });
 
-onMounted(async () => {
-  debugHelper.log('info', '[Dashboard] onMounted вызван', { route: router.currentRoute.value.path });
-  
-  // Прокручиваем страницу наверх
-  window.scrollTo({ top: 0, behavior: 'instant' });
-  
-  // Очищаем все предыдущие обработчики
-  try {
-    WebApp.BackButton.hide();
-    WebApp.MainButton.hide();
-  } catch {}
+// Функция загрузки данных
+const loadData = async () => {
+  debugHelper.log('info', '[Dashboard] Загружаю данные...');
+  loading.value = true;
   
   try {
-    debugHelper.log('info', '[Dashboard] Загружаю данные...');
     // Загружаем данные (авторизация через middleware)
     const [userRes, appointmentsRes, statsRes] = await Promise.all([
       api.get('/auth/me'),
@@ -314,6 +306,30 @@ onMounted(async () => {
   } finally {
     loading.value = false;
   }
+};
+
+// Следим за изменением роута и перезагружаем данные
+watch(() => router.currentRoute.value.path, (newPath) => {
+  if (newPath === '/master/dashboard') {
+    debugHelper.log('info', '[Dashboard] Роут изменился, перезагружаю данные');
+    loadData();
+  }
+});
+
+onMounted(async () => {
+  debugHelper.log('info', '[Dashboard] onMounted вызван', { route: router.currentRoute.value.path });
+  
+  // Прокручиваем страницу наверх
+  window.scrollTo({ top: 0, behavior: 'instant' });
+  
+  // Очищаем все предыдущие обработчики
+  try {
+    WebApp.BackButton.hide();
+    WebApp.MainButton.hide();
+  } catch {}
+  
+  // Загружаем данные
+  await loadData();
 });
 
 onBeforeUnmount(() => {
