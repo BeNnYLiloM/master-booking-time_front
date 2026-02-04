@@ -22,6 +22,8 @@ const isTelegram = computed(() => {
 
 // State
 const step = ref(1);
+const categories = ref<any[]>([]); // Категории услуг
+const selectedCategory = ref<number | null>(null); // Выбранная категория
 const services = ref<any[]>([]);
 const selectedService = ref<any>(null);
 const selectedDate = ref(new Date().toISOString().split('T')[0]);
@@ -96,10 +98,59 @@ const nextMonth = () => {
   currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() + 1);
 };
 
+// Фильтрованные услуги по выбранной категории
+const filteredServices = computed(() => {
+  if (selectedCategory.value === null) {
+    return services.value;
+  }
+  if (selectedCategory.value === 0) {
+    // 0 = услуги без категории
+    return services.value.filter(s => !s.categoryId);
+  }
+  return services.value.filter(s => s.categoryId === selectedCategory.value);
+});
+
+// Группировка услуг по категориям для подсчета
+const servicesByCategory = computed(() => {
+  const grouped: Record<number, any[]> = {};
+  services.value.forEach(service => {
+    const catId = service.categoryId || 0; // 0 для услуг без категории
+    if (!grouped[catId]) {
+      grouped[catId] = [];
+    }
+    grouped[catId].push(service);
+  });
+  return grouped;
+});
+
+// Услуги без категории
+const servicesWithoutCategory = computed(() => {
+  return services.value.filter(s => !s.categoryId);
+});
+
+// Функции навигации по категориям
+const selectCategory = (categoryId: number | null) => {
+  selectedCategory.value = categoryId;
+};
+
+const backToCategories = () => {
+  selectedCategory.value = null;
+  selectedService.value = null;
+};
+
 onMounted(async () => {
   try {
     // Проверяем избранное
     isFavorite.value = favoritesService.isFavorite(Number(masterId));
+    
+    // Загружаем категории
+    try {
+      const categoriesRes = await api.get(`/public/categories/${masterId}`);
+      categories.value = categoriesRes.data.categories || [];
+    } catch (e) {
+      console.error('Failed to load categories:', e);
+      categories.value = [];
+    }
     
     // Загружаем услуги
     const servicesRes = await api.get(`/public/services/${masterId}`);
@@ -173,6 +224,7 @@ onUnmounted(() => {
     try {
       WebApp.MainButton.offClick(mainButtonHandler);
       WebApp.MainButton.hide();
+      WebApp.BackButton.hide();
     } catch {}
   }
 });
@@ -475,8 +527,107 @@ const getWorkingDaysSummary = () => {
     <div class="p-4">
       <!-- Step 1: Select Service -->
       <div v-if="step === 1">
-        <h1 class="text-2xl font-bold mb-1">Выберите услугу</h1>
-        <p class="text-tg-hint text-sm mb-6">Что вы хотите сделать?</p>
+        <!-- Если есть категории И категория не выбрана - показываем выбор категорий -->
+        <div v-if="categories.length > 0 && selectedCategory === null">
+          <h1 class="text-2xl font-bold mb-1">Выберите категорию</h1>
+          <p class="text-tg-hint text-sm mb-6">Что вас интересует?</p>
+
+          <div v-if="loading" class="py-12 text-center">
+            <div class="spinner mx-auto mb-3"></div>
+            <p class="text-tg-hint text-sm">Загрузка...</p>
+          </div>
+
+          <div v-else class="space-y-3">
+            <!-- Категории -->
+            <button 
+              v-for="category in categories" 
+              :key="category.id" 
+              @click="selectCategory(category.id)"
+              class="w-full text-left card transition-all active:scale-[0.98]"
+            >
+              <div class="flex items-center gap-3">
+                <!-- Category Image -->
+                <div 
+                  v-if="category.imageUrl"
+                  class="w-16 h-16 rounded-xl overflow-hidden bg-tg-bg shrink-0"
+                >
+                  <img 
+                    :src="category.imageUrl" 
+                    :alt="category.name" 
+                    class="w-full h-full object-cover"
+                  />
+                </div>
+                <div 
+                  v-else
+                  class="w-12 h-12 rounded-xl flex items-center justify-center bg-purple-500/15 shrink-0"
+                >
+                  <svg class="w-6 h-6 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                  </svg>
+                </div>
+
+                <div class="flex-1">
+                  <div class="font-semibold">{{ category.name }}</div>
+                  <div class="text-sm text-tg-hint">
+                    {{ servicesByCategory[category.id]?.length || 0 }} 
+                    {{ (servicesByCategory[category.id]?.length || 0) === 1 ? 'услуга' : 'услуг' }}
+                    <span v-if="servicesByCategory[category.id] && (servicesByCategory[category.id] || []).length > 0">
+                      • от {{ Math.min(...(servicesByCategory[category.id] || []).map(s => s.price)) }}₽
+                    </span>
+                  </div>
+                </div>
+                
+                <svg class="w-5 h-5 text-tg-hint" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+            </button>
+
+            <!-- Услуги без категории (если есть) -->
+            <button 
+              v-if="servicesWithoutCategory.length > 0"
+              @click="selectCategory(0)"
+              class="w-full text-left card transition-all active:scale-[0.98]"
+            >
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl flex items-center justify-center bg-tg-bg shrink-0">
+                  <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                  </svg>
+                </div>
+
+                <div class="flex-1">
+                  <div class="font-semibold">Другие услуги</div>
+                  <div class="text-sm text-tg-hint">
+                    {{ servicesWithoutCategory.length }} 
+                    {{ servicesWithoutCategory.length === 1 ? 'услуга' : 'услуг' }}
+                  </div>
+                </div>
+                
+                <svg class="w-5 h-5 text-tg-hint" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Если категория выбрана ИЛИ нет категорий - показываем услуги -->
+        <div v-else>
+          <!-- Back button (если есть категории) -->
+          <button 
+            v-if="categories.length > 0" 
+            @click="backToCategories"
+            class="flex items-center gap-2 text-accent mb-4"
+          >
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+            </svg>
+            <span>Назад к категориям</span>
+          </button>
+
+          <h1 class="text-2xl font-bold mb-1">Выберите услугу</h1>
+          <p class="text-tg-hint text-sm mb-6">Что вы хотите сделать?</p>
 
         <div v-if="loading" class="py-12 text-center">
           <div class="spinner mx-auto mb-3"></div>
@@ -494,7 +645,7 @@ const getWorkingDaysSummary = () => {
 
         <div v-else class="space-y-3">
           <button 
-            v-for="s in services" 
+            v-for="s in filteredServices" 
             :key="s.id" 
             @click="selectService(s)"
             class="w-full text-left card transition-all active:scale-[0.98]"
@@ -526,7 +677,8 @@ const getWorkingDaysSummary = () => {
 
               <div class="flex-1">
                 <div class="font-semibold">{{ s.title }}</div>
-                <div class="text-sm text-tg-hint">{{ s.duration }} мин</div>
+                <div v-if="s.description" class="text-xs text-tg-hint mt-0.5 line-clamp-2">{{ s.description }}</div>
+                <div class="text-sm text-tg-hint mt-1">{{ s.duration }} мин</div>
               </div>
               <div class="text-right">
                 <div class="font-bold text-accent">{{ s.price }} ₽</div>
@@ -534,6 +686,7 @@ const getWorkingDaysSummary = () => {
             </div>
           </button>
         </div>
+        </div><!-- End of services selection -->
 
         <!-- Master Rating & Reviews -->
         <div v-if="!loading && masterRating && masterRating.count > 0" class="mt-6 card">
