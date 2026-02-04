@@ -55,9 +55,9 @@ onMounted(() => {
 
 <template>
   <div class="min-h-screen min-h-dvh">
-    <RouterView v-slot="{ Component }">
+    <RouterView v-slot="{ Component, route }">
       <transition name="page" mode="out-in">
-        <component :is="Component" />
+        <component :is="Component" :key="route.path" />
       </transition>
     </RouterView>
     
