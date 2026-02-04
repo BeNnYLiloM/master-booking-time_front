@@ -12,6 +12,7 @@ const profile = ref({
   description: '',
   avatarUrl: '',
   phoneNumber: '',
+  breakDuration: 15, // Время отдыха после услуги (по умолчанию 15 минут)
   workingDates: {} as Record<string, { start: string; end: string }>,
   location: {
     type: 'fixed' as 'fixed' | 'mobile' | 'both',
@@ -22,20 +23,31 @@ const profile = ref({
   }
 });
 const services = ref<any[]>([]);
+const categories = ref<any[]>([]); // Категории услуг
 const newService = ref({ 
   title: '', 
+  description: '', // Описание услуги
   price: 0, 
   duration: 60, 
   currency: 'RUB',
   locationType: 'at_client' as 'at_master' | 'at_client' | 'both', // По умолчанию "выезд" (всегда доступно)
+  categoryId: null as number | null, // Категория услуги
   imageFile: null as File | null
 });
 const loading = ref(true);
 const saving = ref(false);
 const showAddService = ref(false);
 
+// Для категорий
+const showAddCategory = ref(false);
+const newCategory = ref({ name: '', imageFile: null as File | null });
+const categoryImagePreview = ref<string | null>(null);
+const uploadingCategory = ref(false);
+const editingCategory = ref<{ id: number; name: string; imageFile: File | null } | null>(null);
+const editCategoryImagePreview = ref<string | null>(null);
+
 // Для редактирования услуги
-const editingService = ref<{ id: number; title: string; price: number; duration: number; currency: string; locationType: 'at_master' | 'at_client' | 'both'; imageFile: File | null } | null>(null);
+const editingService = ref<{ id: number; title: string; description: string; price: number; duration: number; currency: string; locationType: 'at_master' | 'at_client' | 'both'; categoryId: number | null; imageFile: File | null } | null>(null);
 const editServiceImagePreview = ref<string | null>(null);
 
 // Для аватара
@@ -250,6 +262,7 @@ onMounted(async () => {
         description: profileRes.data.profile.description || '',
         avatarUrl: profileRes.data.profile.avatarUrl || '',
         phoneNumber: profileRes.data.profile.phoneNumber || '',
+        breakDuration: profileRes.data.profile.breakDuration ?? 15, // По умолчанию 15 минут
         workingDates: profileRes.data.profile.workingDates || {},
         location: profileRes.data.profile.location || {
           type: 'fixed',
@@ -270,6 +283,10 @@ onMounted(async () => {
     // Загружаем услуги
     const servicesRes = await api.get('/master/services');
     services.value = servicesRes.data.services;
+    
+    // Загружаем категории
+    const categoriesRes = await api.get('/master/categories');
+    categories.value = categoriesRes.data.categories;
   } catch (e) {
     console.error(e);
   } finally {
@@ -459,10 +476,12 @@ const addService = async () => {
     // Создаем услугу
     const res = await api.post('/master/services', {
       title: newService.value.title,
+      description: newService.value.description,
       price: newService.value.price,
       duration: newService.value.duration,
       currency: newService.value.currency,
-      locationType: newService.value.locationType
+      locationType: newService.value.locationType,
+      categoryId: newService.value.categoryId
     });
     
     const createdService = res.data.service;
@@ -483,7 +502,7 @@ const addService = async () => {
     }
     
     services.value.push(createdService);
-    newService.value = { title: '', price: 0, duration: 60, currency: 'RUB', locationType: 'at_client', imageFile: null };
+    newService.value = { title: '', description: '', price: 0, duration: 60, currency: 'RUB', locationType: 'at_client', categoryId: null, imageFile: null };
     serviceImagePreview.value = null;
     showAddService.value = false;
     
@@ -519,10 +538,12 @@ const startEditService = (service: any) => {
   editingService.value = {
     id: service.id,
     title: service.title,
+    description: service.description || '',
     price: service.price,
     duration: service.duration,
     currency: service.currency,
     locationType: service.locationType,
+    categoryId: service.categoryId || null,
     imageFile: null
   };
   editServiceImagePreview.value = service.imageUrl || null;
@@ -577,10 +598,12 @@ const updateService = async () => {
     // Обновляем данные услуги
     const res = await api.put(`/master/services/${serviceId}`, {
       title: editingService.value.title,
+      description: editingService.value.description,
       price: editingService.value.price,
       duration: editingService.value.duration,
       currency: editingService.value.currency,
-      locationType: editingService.value.locationType
+      locationType: editingService.value.locationType,
+      categoryId: editingService.value.categoryId
     });
     
     let updatedService = res.data.service;
@@ -617,6 +640,204 @@ const updateService = async () => {
       WebApp.showAlert('Ошибка обновления услуги');
     } catch {
       alert('Ошибка обновления услуги');
+    }
+  }
+};
+
+// === КАТЕГОРИИ УСЛУГ ===
+
+const onCategoryImageSelect = (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  
+  if (file) {
+    if (!file.type.startsWith('image/')) {
+      try {
+        WebApp.showAlert('Пожалуйста, выберите изображение');
+      } catch {
+        alert('Пожалуйста, выберите изображение');
+      }
+      return;
+    }
+    
+    if (file.size > 5 * 1024 * 1024) {
+      try {
+        WebApp.showAlert('Файл слишком большой (макс. 5MB)');
+      } catch {
+        alert('Файл слишком большой (макс. 5MB)');
+      }
+      return;
+    }
+    
+    newCategory.value.imageFile = file;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      categoryImagePreview.value = e.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  }
+};
+
+const addCategory = async () => {
+  if (!newCategory.value.name.trim()) return;
+  
+  uploadingCategory.value = true;
+  
+  try {
+    // Создаем категорию
+    const res = await api.post('/master/categories', {
+      name: newCategory.value.name
+    });
+    
+    let category = res.data.category;
+    
+    // Если есть изображение - загружаем его
+    if (newCategory.value.imageFile) {
+      const formData = new FormData();
+      formData.append('image', newCategory.value.imageFile);
+      
+      try {
+        const imgRes = await api.post(`/master/categories/${category.id}/image`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        category.imageUrl = imgRes.data.category.imageUrl;
+      } catch (err) {
+        console.error('Failed to upload category image:', err);
+      }
+    }
+    
+    categories.value.push(category);
+    newCategory.value = { name: '', imageFile: null };
+    categoryImagePreview.value = null;
+    showAddCategory.value = false;
+    
+    try {
+      WebApp.HapticFeedback.notificationOccurred('success');
+    } catch {}
+  } catch {
+    try {
+      WebApp.showAlert('Ошибка создания категории');
+    } catch {
+      alert('Ошибка создания категории');
+    }
+  } finally {
+    uploadingCategory.value = false;
+  }
+};
+
+const deleteCategory = async (id: number) => {
+  const confirmed = confirm('Удалить категорию? Услуги останутся без категории.');
+  if (!confirmed) return;
+  
+  try {
+    await api.delete(`/master/categories/${id}`);
+    categories.value = categories.value.filter(c => c.id !== id);
+    try {
+      WebApp.HapticFeedback.notificationOccurred('warning');
+    } catch {}
+  } catch {
+    try {
+      WebApp.showAlert('Ошибка удаления');
+    } catch {
+      alert('Ошибка удаления');
+    }
+  }
+};
+
+const startEditCategory = (category: any) => {
+  editingCategory.value = {
+    id: category.id,
+    name: category.name,
+    imageFile: null
+  };
+  editCategoryImagePreview.value = category.imageUrl || null;
+  showAddCategory.value = false;
+};
+
+const cancelEditCategory = () => {
+  editingCategory.value = null;
+  editCategoryImagePreview.value = null;
+};
+
+const onEditCategoryImageSelect = (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  
+  if (file) {
+    if (!file.type.startsWith('image/')) {
+      try {
+        WebApp.showAlert('Пожалуйста, выберите изображение');
+      } catch {
+        alert('Пожалуйста, выберите изображение');
+      }
+      return;
+    }
+    
+    if (file.size > 5 * 1024 * 1024) {
+      try {
+        WebApp.showAlert('Файл слишком большой (макс. 5MB)');
+      } catch {
+        alert('Файл слишком большой (макс. 5MB)');
+      }
+      return;
+    }
+    
+    if (editingCategory.value) {
+      editingCategory.value.imageFile = file;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        editCategoryImagePreview.value = e.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+};
+
+const updateCategory = async () => {
+  if (!editingCategory.value || !editingCategory.value.name.trim()) return;
+  
+  try {
+    const categoryId = editingCategory.value.id;
+    
+    // Обновляем данные категории
+    const res = await api.put(`/master/categories/${categoryId}`, {
+      name: editingCategory.value.name
+    });
+    
+    let updatedCategory = res.data.category;
+    
+    // Если есть новое изображение - загружаем его
+    if (editingCategory.value.imageFile) {
+      const formData = new FormData();
+      formData.append('image', editingCategory.value.imageFile);
+      
+      try {
+        const imgRes = await api.post(`/master/categories/${categoryId}/image`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        updatedCategory.imageUrl = imgRes.data.category.imageUrl;
+      } catch (err) {
+        console.error('Failed to upload category image:', err);
+      }
+    }
+    
+    // Обновляем в списке
+    const index = categories.value.findIndex(c => c.id === categoryId);
+    if (index !== -1) {
+      categories.value[index] = updatedCategory;
+    }
+    
+    editingCategory.value = null;
+    editCategoryImagePreview.value = null;
+    
+    try {
+      WebApp.HapticFeedback.notificationOccurred('success');
+    } catch {}
+  } catch {
+    try {
+      WebApp.showAlert('Ошибка обновления категории');
+    } catch {
+      alert('Ошибка обновления категории');
     }
   }
 };
@@ -749,6 +970,26 @@ const updateService = async () => {
             class="w-full p-3 rounded-xl"
           />
           <p class="text-xs text-tg-hint mt-1.5">Для связи с клиентами</p>
+        </div>
+
+        <div>
+          <label class="text-xs text-tg-hint mb-1.5 block">Время отдыха после услуги</label>
+          <select 
+            v-model.number="profile.breakDuration" 
+            class="w-full p-3 rounded-xl"
+          >
+            <option :value="0">Без перерыва</option>
+            <option :value="5">5 минут</option>
+            <option :value="10">10 минут</option>
+            <option :value="15">15 минут</option>
+            <option :value="20">20 минут</option>
+            <option :value="30">30 минут</option>
+            <option :value="45">45 минут</option>
+            <option :value="60">1 час</option>
+          </select>
+          <p class="text-xs text-tg-hint mt-1.5">
+            Буфер времени между записями для отдыха и подготовки
+          </p>
         </div>
       </div>
     </div>
@@ -992,6 +1233,164 @@ const updateService = async () => {
       </button>
     </div>
 
+    <!-- Categories Section -->
+    <div class="card mb-4">
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-purple-500/15 flex items-center justify-center">
+            <svg class="w-5 h-5 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+            </svg>
+          </div>
+          <div>
+            <h2 class="font-semibold">Категории услуг</h2>
+            <p class="text-xs text-tg-hint">Группировка для удобства клиентов</p>
+          </div>
+        </div>
+        <button 
+          v-if="!showAddCategory && !editingCategory"
+          @click="showAddCategory = true"
+          class="btn btn-accent px-4 py-2 text-sm"
+        >
+          + Добавить
+        </button>
+      </div>
+
+      <!-- Add Category Form -->
+      <div v-if="showAddCategory" class="bg-accent/5 rounded-xl p-4 mb-4">
+        <h3 class="font-medium mb-3">Новая категория</h3>
+        <div class="space-y-3">
+          <div>
+            <label class="text-xs text-tg-hint mb-1.5 block">Название</label>
+            <input 
+              v-model="newCategory.name" 
+              placeholder="Например: Ногтевой сервис"
+              class="w-full p-3 rounded-xl"
+            />
+          </div>
+          
+          <div>
+            <label class="text-xs text-tg-hint mb-1.5 block">Изображение (опционально)</label>
+            <div v-if="categoryImagePreview" class="mb-2 relative">
+              <img :src="categoryImagePreview" class="w-full h-32 object-cover rounded-xl" />
+            </div>
+            <label class="btn bg-tg-secondary-bg text-sm py-2 w-full cursor-pointer">
+              <svg class="w-4 h-4 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              Выбрать изображение
+              <input type="file" accept="image/*" class="hidden" @change="onCategoryImageSelect" />
+            </label>
+          </div>
+
+          <div class="flex gap-2">
+            <button 
+              @click="addCategory"
+              :disabled="!newCategory.name.trim() || uploadingCategory"
+              class="flex-1 btn bg-success text-white"
+            >
+              {{ uploadingCategory ? 'Создание...' : 'Создать' }}
+            </button>
+            <button 
+              @click="showAddCategory = false; newCategory = { name: '', imageFile: null }; categoryImagePreview = null"
+              class="btn bg-tg-secondary-bg"
+            >
+              Отмена
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Edit Category Form -->
+      <div v-if="editingCategory" class="bg-blue-500/5 rounded-xl p-4 mb-4">
+        <h3 class="font-medium mb-3">Редактирование категории</h3>
+        <div class="space-y-3">
+          <div>
+            <label class="text-xs text-tg-hint mb-1.5 block">Название</label>
+            <input 
+              v-model="editingCategory.name" 
+              class="w-full p-3 rounded-xl"
+            />
+          </div>
+          
+          <div>
+            <label class="text-xs text-tg-hint mb-1.5 block">Изображение</label>
+            <div v-if="editCategoryImagePreview" class="mb-2 relative">
+              <img :src="editCategoryImagePreview" class="w-full h-32 object-cover rounded-xl" />
+            </div>
+            <label class="btn bg-tg-secondary-bg text-sm py-2 w-full cursor-pointer">
+              <svg class="w-4 h-4 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              Изменить изображение
+              <input type="file" accept="image/*" class="hidden" @change="onEditCategoryImageSelect" />
+            </label>
+          </div>
+
+          <div class="flex gap-2">
+            <button 
+              @click="updateCategory"
+              :disabled="!editingCategory.name.trim()"
+              class="flex-1 btn bg-success text-white"
+            >
+              Сохранить
+            </button>
+            <button 
+              @click="cancelEditCategory"
+              class="btn bg-tg-secondary-bg"
+            >
+              Отмена
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Categories List -->
+      <div v-if="categories.length > 0" class="space-y-2">
+        <div 
+          v-for="category in categories" 
+          :key="category.id"
+          class="flex items-center gap-3 p-3 rounded-xl bg-tg-secondary-bg"
+        >
+          <div v-if="category.imageUrl" class="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0">
+            <img :src="category.imageUrl" class="w-full h-full object-cover" />
+          </div>
+          <div v-else class="w-12 h-12 rounded-lg bg-purple-500/15 flex items-center justify-center flex-shrink-0">
+            <svg class="w-6 h-6 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+            </svg>
+          </div>
+          
+          <div class="flex-1">
+            <h3 class="font-medium">{{ category.name }}</h3>
+          </div>
+          
+          <div class="flex gap-2">
+            <button 
+              @click="startEditCategory(category)"
+              class="p-2 rounded-lg bg-blue-500/10 text-blue-500"
+            >
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            </button>
+            <button 
+              @click="deleteCategory(category.id)"
+              class="p-2 rounded-lg bg-danger/10 text-danger"
+            >
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <p v-else class="text-sm text-tg-hint text-center py-4">
+        Категории помогают клиентам быстрее найти нужную услугу
+      </p>
+    </div>
+
     <!-- Services Section -->
     <div class="card">
       <div class="flex items-center justify-between mb-4">
@@ -1059,6 +1458,15 @@ const updateService = async () => {
             placeholder="Название услуги" 
             class="w-full p-3 rounded-xl mb-2"
           />
+          
+          <!-- Description -->
+          <textarea
+            v-model="newService.description"
+            placeholder="Описание услуги (опционально)"
+            rows="3"
+            class="w-full p-3 rounded-xl mb-2 resize-none"
+          />
+          
           <div class="grid grid-cols-2 gap-2 mb-3">
             <div class="relative">
               <input 
@@ -1078,6 +1486,24 @@ const updateService = async () => {
               />
               <span class="absolute right-3 top-1/2 -translate-y-1/2 text-tg-hint text-sm">мин</span>
             </div>
+          </div>
+          
+          <!-- Category Selection -->
+          <div v-if="categories.length > 0" class="mb-3">
+            <label class="text-xs text-tg-hint mb-2 block">Категория (опционально)</label>
+            <select 
+              v-model="newService.categoryId"
+              class="w-full p-3 rounded-xl"
+            >
+              <option :value="null">Без категории</option>
+              <option 
+                v-for="category in categories" 
+                :key="category.id" 
+                :value="category.id"
+              >
+                {{ category.name }}
+              </option>
+            </select>
           </div>
           
           <!-- Location Type -->
@@ -1208,6 +1634,15 @@ const updateService = async () => {
               placeholder="Название услуги" 
               class="w-full p-3 rounded-xl mb-2"
             />
+            
+            <!-- Description for Edit -->
+            <textarea
+              v-model="editingService.description"
+              placeholder="Описание услуги (опционально)"
+              rows="3"
+              class="w-full p-3 rounded-xl mb-2 resize-none"
+            />
+            
             <div class="grid grid-cols-2 gap-2 mb-3">
               <div class="relative">
                 <input 
@@ -1227,6 +1662,24 @@ const updateService = async () => {
                 />
                 <span class="absolute right-3 top-1/2 -translate-y-1/2 text-tg-hint text-sm">мин</span>
               </div>
+            </div>
+            
+            <!-- Category Selection for Edit -->
+            <div v-if="categories.length > 0" class="mb-3">
+              <label class="text-xs text-tg-hint mb-2 block">Категория (опционально)</label>
+              <select 
+                v-model="editingService.categoryId"
+                class="w-full p-3 rounded-xl"
+              >
+                <option :value="null">Без категории</option>
+                <option 
+                  v-for="category in categories" 
+                  :key="category.id" 
+                  :value="category.id"
+                >
+                  {{ category.name }}
+                </option>
+              </select>
             </div>
             
             <!-- Location Type for Edit -->
