@@ -218,6 +218,19 @@ onMounted(async () => {
     // Загружаем избранное
     await loadFavorites();
     
+    // Проверяем query параметр review для автоматического открытия формы отзыва
+    const reviewParam = router.currentRoute.value.query.review;
+    if (reviewParam) {
+      const appointmentId = parseInt(reviewParam as string);
+      // Проверяем что такая запись есть и она завершена
+      const appt = appointments.value.find(a => a.id === appointmentId && a.status === 'completed');
+      if (appt) {
+        openReviewForm(appointmentId);
+        // Очищаем query параметр из URL
+        router.replace({ query: {} });
+      }
+    }
+    
     // Показываем BackButton для возврата на Dashboard
     try {
       backButtonHandler = () => router.push('/master/dashboard');
