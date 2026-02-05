@@ -220,12 +220,20 @@ onMounted(async () => {
     
     // Проверяем query параметр review для автоматического открытия формы отзыва
     const reviewParam = router.currentRoute.value.query.review;
+    console.log('[Appointments] Review param:', reviewParam);
     if (reviewParam) {
       const appointmentId = parseInt(reviewParam as string);
-      // Проверяем что такая запись есть и она завершена
-      const appt = appointments.value.find(a => a.id === appointmentId && a.status === 'completed');
+      console.log('[Appointments] Looking for appointment ID:', appointmentId);
+      // Проверяем что такая запись есть и она завершена или ожидает отзыва
+      const appt = appointments.value.find(a => a.id === appointmentId && (a.status === 'completed' || a.status === 'awaiting_review'));
+      console.log('[Appointments] Found appointment:', appt);
       if (appt) {
+        console.log('[Appointments] Opening review form for appointment:', appointmentId);
         openReviewForm(appointmentId);
+        // Прокручиваем к форме отзыва
+        setTimeout(() => {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }, 100);
         // Очищаем query параметр из URL
         router.replace({ query: {} });
       }

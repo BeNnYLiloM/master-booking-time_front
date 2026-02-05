@@ -26,11 +26,21 @@ onMounted(() => {
   });
   
   try {
-    // Обработка start_param для deep link (ссылка для клиентов)
+    // Обработка start_param для deep link
     const startParam = WebApp.initDataUnsafe?.start_param;
-    if (startParam && startParam.startsWith('book_')) {
-      const masterId = startParam.replace('book_', '');
-      router.replace(`/booking/${masterId}`);
+    console.log('[App] Start param:', startParam);
+    
+    if (startParam) {
+      if (startParam.startsWith('book_')) {
+        // Клиент перешёл по ссылке мастера для записи
+        const masterId = startParam.replace('book_', '');
+        router.replace(`/booking/${masterId}`);
+      } else if (startParam.startsWith('review_')) {
+        // Клиент открыл приложение для оставления отзыва
+        const appointmentId = startParam.replace('review_', '');
+        console.log('[App] Redirecting to appointments with review:', appointmentId);
+        router.replace(`/client/appointments?review=${appointmentId}`);
+      }
     }
     
     // Получаем цвета темы из Telegram и применяем к CSS
