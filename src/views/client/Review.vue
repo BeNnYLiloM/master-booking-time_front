@@ -103,11 +103,23 @@ onMounted(async () => {
     // Проверяем, что запись завершена
     if (appointment.value.status !== 'completed' && appointment.value.status !== 'awaiting_review') {
       error.value = 'Отзыв можно оставить только для завершённых записей';
+      loading.value = false;
+      return;
     }
     
     // Проверяем, не оставлен ли уже отзыв
-    if (appointment.value.review) {
-      error.value = 'Вы уже оставили отзыв на эту запись';
+    try {
+      const canReviewRes = await api.get(`/reviews/can-leave/${appointmentId.value}`);
+      if (!canReviewRes.data.canLeaveReview) {
+        error.value = 'Вы уже оставили отзыв на эту запись';
+        loading.value = false;
+        return;
+      }
+    } catch (e: any) {
+      console.error('Error checking review status:', e);
+      error.value = 'Не удалось проверить статус отзыва';
+      loading.value = false;
+      return;
     }
     
   } catch (e: any) {
