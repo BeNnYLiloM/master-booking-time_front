@@ -22,31 +22,81 @@ const stats = ref<any>(null);
 const selectedDate = ref<string | null>(null); // Фильтр по дате из календаря
 const activeFilter = ref<'all' | 'today' | 'pending'>('all'); // Фильтр из карточек статистики
 
-// Генерация 14 дней для выбора
+// Текущий месяц для календаря
+const currentMonth = ref(new Date());
+
+// Генерация календаря (как в Profile.vue)
 const calendarDays = computed(() => {
+  const year = currentMonth.value.getFullYear();
+  const month = currentMonth.value.getMonth();
+  
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  
   const days = [];
-  for (let i = 0; i < 14; i++) {
-    const date = new Date();
-    date.setDate(date.getDate() + i);
+  const startPadding = (firstDay.getDay() + 6) % 7; // Понедельник = 0
+  
+  // Пустые ячейки в начале
+  for (let i = 0; i < startPadding; i++) {
+    days.push(null);
+  }
+  
+  // Дни месяца
+  for (let day = 1; day <= lastDay.getDate(); day++) {
+    const date = new Date(year, month, day);
     const dateStr = date.toISOString().split('T')[0];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const isPast = date < today;
+    const isToday = date.toDateString() === today.toDateString();
     
-    // Считаем активные записи на этот день (не отменённые)
-    const count = appointments.value.filter(a => {
+    // Считаем активные записи на этот день (не отменённые и не завершённые)
+    const activeCount = appointments.value.filter(a => {
       const apptDate = new Date(a.startTime).toISOString().split('T')[0];
-      return apptDate === dateStr && a.status !== 'cancelled';
+      return apptDate === dateStr && a.status !== 'cancelled' && a.status !== 'completed';
     }).length;
+    
+    const isSelected = selectedDate.value === dateStr;
     
     days.push({
       date: dateStr,
-      day: date.toLocaleDateString('ru-RU', { weekday: 'short' }),
-      num: date.getDate(),
-      month: date.toLocaleDateString('ru-RU', { month: 'short' }),
-      isToday: i === 0,
-      count
+      day: day,
+      isPast,
+      isToday,
+      activeCount,
+      isSelected
     });
   }
+  
   return days;
 });
+
+// Навигация по месяцам
+const previousMonth = () => {
+  currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() - 1);
+};
+
+const nextMonth = () => {
+  currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() + 1);
+};
+
+// Можно ли переключить на предыдущий месяц (не раньше текущего)
+const canGoPrevious = computed(() => {
+  const today = new Date();
+  const firstDayOfCurrentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  const firstDayOfDisplayedMonth = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth(), 1);
+  return firstDayOfDisplayedMonth > firstDayOfCurrentMonth;
+});
+
+// Выбор даты в календаре
+const selectDate = (dateStr: string) => {
+  if (selectedDate.value === dateStr) {
+    selectedDate.value = null; // Снять выбор
+  } else {
+    selectedDate.value = dateStr;
+  }
+  activeFilter.value = 'all'; // Сбросить фильтр из карточек
+};
 
 // Фильтрованные записи
 const filteredAppointments = computed(() => {
@@ -226,17 +276,6 @@ const cancelAppointment = async (id: number) => {
   }
 };
 
-const selectDay = (date: string | null | undefined) => {
-  // Если кликнули на уже выбранный день — сбрасываем фильтр
-  if (selectedDate.value === date) {
-    selectedDate.value = null;
-  } else {
-    selectedDate.value = date ?? null;
-  }
-  try {
-    WebApp.HapticFeedback.selectionChanged();
-  } catch {}
-};
 
 // Выбор фильтра из карточек статистики
 const selectFilter = (filter: 'all' | 'today' | 'pending') => {
@@ -506,45 +545,103 @@ onBeforeUnmount(() => {
       </svg>
     </router-link>
 
-    <!-- Calendar Strip -->
+    <!-- Calendar -->
     <div class="mb-6">
-      <div class="flex items-center justify-between mb-3">
-        <label class="text-sm font-semibold">Расписание</label>
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold">Расписание</h2>
         <button 
           v-if="selectedDate || activeFilter !== 'all'"
-          @click="selectFilter('all')"
+          @click="selectedDate = null; activeFilter = 'all'"
           class="text-xs text-accent font-medium"
         >
           Показать все
         </button>
       </div>
-      <div class="overflow-x-auto -mx-4 px-4">
-        <div class="flex gap-2 pt-2 pb-2">
-          <button 
-            v-for="d in calendarDays" 
-            :key="d.date"
-            @click="selectDay(d.date)"
-            class="flex-shrink-0 w-14 py-2 rounded-xl text-center transition-all relative"
-            :class="selectedDate === d.date 
-              ? 'bg-accent text-white' 
-              : (d.isToday && selectedDate !== null)
-                ? 'bg-accent/15 text-accent' 
-                : 'bg-tg-secondary-bg'"
+
+      <div class="card">
+        <!-- Month Navigation -->
+        <div class="flex items-center justify-between mb-4">
+          <button
+            @click="previousMonth"
+            :disabled="!canGoPrevious"
+            class="p-2 rounded-lg transition-colors"
+            :class="canGoPrevious ? 'hover:bg-tg-secondary-bg active:scale-95' : 'opacity-30 cursor-not-allowed'"
           >
-            <div class="text-xs opacity-70">{{ d.day }}</div>
-            <div class="text-lg font-bold">{{ d.num }}</div>
-            
-            <!-- Индикатор записей -->
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          
+          <div class="text-center">
+            <div class="font-semibold">
+              {{ currentMonth.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' }) }}
+            </div>
+          </div>
+          
+          <button
+            @click="nextMonth"
+            class="p-2 rounded-lg hover:bg-tg-secondary-bg active:scale-95 transition-colors"
+          >
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Weekday Headers -->
+        <div class="grid grid-cols-7 gap-1 mb-2">
+          <div class="text-center text-xs font-medium text-tg-hint py-1">Пн</div>
+          <div class="text-center text-xs font-medium text-tg-hint py-1">Вт</div>
+          <div class="text-center text-xs font-medium text-tg-hint py-1">Ср</div>
+          <div class="text-center text-xs font-medium text-tg-hint py-1">Чт</div>
+          <div class="text-center text-xs font-medium text-tg-hint py-1">Пт</div>
+          <div class="text-center text-xs font-medium text-tg-hint py-1">Сб</div>
+          <div class="text-center text-xs font-medium text-tg-hint py-1">Вс</div>
+        </div>
+
+        <!-- Calendar Grid -->
+        <div class="grid grid-cols-7 gap-1">
+          <button
+            v-for="(day, idx) in calendarDays"
+            :key="idx"
+            @click="day && !day.isPast && day.date ? selectDate(day.date) : null"
+            :disabled="!day || day.isPast"
+            class="aspect-square rounded-lg text-sm font-medium transition-all relative"
+            :class="{
+              'bg-tg-secondary-bg': day && !day.isPast && !day.isSelected && day.activeCount === 0,
+              'bg-accent/15 text-accent': day && day.activeCount > 0 && !day.isSelected,
+              'bg-accent text-white': day && day.isSelected,
+              'ring-2 ring-accent ring-offset-2 ring-offset-tg-bg': day && day.isToday && !day.isSelected,
+              'opacity-30 cursor-not-allowed': day && day.isPast,
+              'invisible': !day
+            }"
+          >
+            <span v-if="day" class="relative z-10">{{ day.day }}</span>
+            <!-- Count Badge -->
             <div 
-              v-if="d.count > 0" 
-              class="absolute -top-1.5 -right-1 min-w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold"
-              :class="selectedDate === d.date 
-                ? 'bg-white text-accent' 
-                : 'bg-accent text-white'"
+              v-if="day && day.activeCount > 0"
+              class="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full text-[10px] font-bold flex items-center justify-center"
+              :class="day.isSelected ? 'bg-white text-accent' : 'bg-accent text-white'"
             >
-              {{ d.count > 9 ? '9+' : d.count }}
+              {{ day.activeCount }}
             </div>
           </button>
+        </div>
+
+        <!-- Legend -->
+        <div class="flex items-center justify-center gap-4 mt-4 text-xs">
+          <div class="flex items-center gap-1.5">
+            <div class="w-3 h-3 rounded bg-accent"></div>
+            <span class="text-tg-hint">Выбрано</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <div class="w-3 h-3 rounded bg-accent/15"></div>
+            <span class="text-tg-hint">Есть записи</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <div class="w-3 h-3 rounded ring-2 ring-accent"></div>
+            <span class="text-tg-hint">Сегодня</span>
+          </div>
         </div>
       </div>
     </div>
