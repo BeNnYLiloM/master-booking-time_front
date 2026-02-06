@@ -37,9 +37,10 @@ onMounted(() => {
         router.replace(`/booking/${masterId}`);
       } else if (startParam.startsWith('review_')) {
         // Клиент открыл приложение для оставления отзыва
+        // Формат: review_{appointmentId}
         const appointmentId = startParam.replace('review_', '');
-        console.log('[App] Redirecting to appointments with review:', appointmentId);
-        router.replace(`/client/appointments?review=${appointmentId}`);
+        console.log('[App] Redirecting to review page with appointment:', appointmentId);
+        router.replace(`/client/review?appointment_id=${appointmentId}`);
       }
     }
     
