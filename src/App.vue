@@ -22,24 +22,12 @@ watch(() => router.currentRoute.value.path, (newPath, oldPath) => {
 onMounted(() => {
   debugHelper.log('info', '[App] 🚀 Приложение запущено', {
     initialRoute: router.currentRoute.value.path,
-    fullPath: router.currentRoute.value.fullPath,
-    query: router.currentRoute.value.query,
-    windowLocation: window.location.href,
     timestamp: new Date().toISOString()
   });
-  
-  console.log('[App] Current route:', {
-    path: router.currentRoute.value.path,
-    fullPath: router.currentRoute.value.fullPath,
-    query: router.currentRoute.value.query,
-  });
-  console.log('[App] Window location:', window.location.href);
   
   try {
     // Обработка start_param для deep link
     const startParam = WebApp.initDataUnsafe?.start_param;
-    console.log('[App] Start param:', startParam);
-    console.log('[App] WebApp.initDataUnsafe:', WebApp.initDataUnsafe);
     
     if (startParam) {
       if (startParam.startsWith('book_')) {
@@ -48,9 +36,7 @@ onMounted(() => {
         router.replace(`/booking/${masterId}`);
       } else if (startParam.startsWith('review_')) {
         // Клиент открыл приложение для оставления отзыва
-        // Формат: review_{appointmentId}
         const appointmentId = startParam.replace('review_', '');
-        console.log('[App] Redirecting to review page with appointment:', appointmentId);
         router.replace(`/client/review?appointment_id=${appointmentId}`);
       }
     }
