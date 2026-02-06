@@ -22,13 +22,24 @@ watch(() => router.currentRoute.value.path, (newPath, oldPath) => {
 onMounted(() => {
   debugHelper.log('info', '[App] 🚀 Приложение запущено', {
     initialRoute: router.currentRoute.value.path,
+    fullPath: router.currentRoute.value.fullPath,
+    query: router.currentRoute.value.query,
+    windowLocation: window.location.href,
     timestamp: new Date().toISOString()
   });
+  
+  console.log('[App] Current route:', {
+    path: router.currentRoute.value.path,
+    fullPath: router.currentRoute.value.fullPath,
+    query: router.currentRoute.value.query,
+  });
+  console.log('[App] Window location:', window.location.href);
   
   try {
     // Обработка start_param для deep link
     const startParam = WebApp.initDataUnsafe?.start_param;
     console.log('[App] Start param:', startParam);
+    console.log('[App] WebApp.initDataUnsafe:', WebApp.initDataUnsafe);
     
     if (startParam) {
       if (startParam.startsWith('book_')) {
