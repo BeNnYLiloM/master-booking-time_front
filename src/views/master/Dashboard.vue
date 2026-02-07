@@ -18,6 +18,15 @@ const copied = ref(false);
 const processingId = ref<number | null>(null);
 const stats = ref<any>(null);
 
+// Функция для корректного получения локальной даты из ISO строки
+const getLocalDateString = (isoString: string): string => {
+  const date = new Date(isoString);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 // Фильтры
 const selectedDate = ref<string | null>(null); // Фильтр по дате из календаря
 const activeFilter = ref<'all' | 'today' | 'pending'>('all'); // Фильтр из карточек статистики
@@ -52,7 +61,7 @@ const calendarDays = computed(() => {
     
     // Считаем активные записи на этот день (не отменённые и не завершённые)
     const activeCount = appointments.value.filter(a => {
-      const apptDate = new Date(a.startTime).toISOString().split('T')[0];
+      const apptDate = getLocalDateString(a.startTime);
       return apptDate === dateStr && a.status !== 'cancelled' && a.status !== 'completed';
     }).length;
     
@@ -106,7 +115,7 @@ const filteredAppointments = computed(() => {
   // Фильтр по дате из календаря (приоритетный)
   if (selectedDate.value) {
     result = result.filter(a => {
-      const apptDate = new Date(a.startTime).toISOString().split('T')[0];
+      const apptDate = getLocalDateString(a.startTime);
       return apptDate === selectedDate.value;
     });
   } else {
@@ -114,7 +123,7 @@ const filteredAppointments = computed(() => {
     switch (activeFilter.value) {
       case 'today':
         result = result.filter(a => {
-          const apptDate = new Date(a.startTime).toISOString().split('T')[0];
+          const apptDate = getLocalDateString(a.startTime);
           return apptDate === today && a.status !== 'cancelled';
         });
         break;
@@ -135,7 +144,7 @@ const filteredAppointments = computed(() => {
 const todayAppointments = computed(() => {
   const today = new Date().toISOString().split('T')[0];
   return appointments.value.filter(a => {
-    const apptDate = new Date(a.startTime).toISOString().split('T')[0];
+    const apptDate = getLocalDateString(a.startTime);
     return apptDate === today && a.status !== 'cancelled';
   });
 });
