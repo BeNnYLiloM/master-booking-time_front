@@ -26,7 +26,9 @@ const categories = ref<any[]>([]); // Категории услуг
 const selectedCategory = ref<number | null>(null); // Выбранная категория
 const services = ref<any[]>([]);
 const selectedService = ref<any>(null);
-const selectedDate = ref(new Date().toISOString().split('T')[0]);
+// Формируем дату без toISOString, чтобы избежать сдвига часового пояса
+const now = new Date();
+const selectedDate = ref(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`);
 const slots = ref<{time: string, isAvailable: boolean}[]>([]);
 const selectedSlot = ref<string | null>(null);
 const loading = ref(true);
@@ -69,7 +71,8 @@ const calendarDays = computed(() => {
   // Дни месяца
   for (let day = 1; day <= lastDay.getDate(); day++) {
     const date = new Date(year, month, day);
-    const dateStr: string = date.toISOString().split('T')[0] as string;
+    // Формируем строку даты напрямую, без toISOString (избегаем сдвиг часового пояса)
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     const isPast = date < today;
     const hasSchedule = masterWorkingDates.value[dateStr] !== undefined;
     const isSelected = selectedDate.value === dateStr;
@@ -180,12 +183,12 @@ onMounted(async () => {
     
     // Устанавливаем первый рабочий день и текущий месяц
     const firstWorkingDay = Object.keys(masterWorkingDates.value)
-      .filter(date => new Date(date) >= new Date(new Date().setHours(0, 0, 0, 0)))
+      .filter(date => new Date(date + 'T12:00:00') >= new Date(new Date().setHours(0, 0, 0, 0)))
       .sort()[0];
     
     if (firstWorkingDay) {
       selectedDate.value = firstWorkingDay;
-      currentMonth.value = new Date(firstWorkingDay);
+      currentMonth.value = new Date(firstWorkingDay + 'T12:00:00');
     } else {
       error.value = 'У мастера нет доступных рабочих дней';
       return;
@@ -377,7 +380,8 @@ const selectDay = (date: string | undefined, isPast: boolean, hasSchedule: boole
 };
 
 const formatSelectedDate = computed(() => {
-  const date = new Date(selectedDate.value || new Date());
+  // Парсим YYYY-MM-DD как локальную дату (добавляем T12:00:00 чтобы избежать сдвига UTC)
+  const date = new Date(selectedDate.value + 'T12:00:00');
   return date.toLocaleDateString('ru-RU', { 
     weekday: 'long', 
     day: 'numeric', 
@@ -404,7 +408,7 @@ const getWorkingDaysSummary = () => {
   today.setHours(0, 0, 0, 0);
   
   const upcomingDates = dates
-    .filter(date => new Date(date) >= today)
+    .filter(date => new Date(date + 'T12:00:00') >= today)
     .sort()
     .slice(0, 3);
   
@@ -412,7 +416,7 @@ const getWorkingDaysSummary = () => {
   
   const daysOfWeek = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
   const summary = upcomingDates.map(dateStr => {
-    const date = new Date(dateStr);
+    const date = new Date(dateStr + 'T12:00:00');
     const dayName = daysOfWeek[date.getDay()];
     const schedule = masterWorkingDates.value[dateStr];
     return `${dayName} ${schedule.start}-${schedule.end}`;

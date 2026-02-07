@@ -92,7 +92,7 @@ const calendarDays = computed(() => {
   // Дни месяца
   for (let day = 1; day <= lastDay.getDate(); day++) {
     const date = new Date(year, month, day);
-    const dateStr: string = date.toISOString().split('T')[0] as string;
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     const isPast = date < new Date(new Date().setHours(0, 0, 0, 0));
     const hasSchedule = profile.value.workingDates?.[dateStr] !== undefined;
     const isSelected = selectedDates.value.has(dateStr);
@@ -168,9 +168,10 @@ const removeSelectedDates = () => {
 
 // Открыть модальное окно для выбора отпуска
 const openVacationModal = () => {
-  const today = new Date().toISOString().split('T')[0];
-  vacationStart.value = today || '';
-  vacationEnd.value = today || '';
+  const todayDate = new Date();
+  const todayStr = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, '0')}-${String(todayDate.getDate()).padStart(2, '0')}`;
+  vacationStart.value = todayStr;
+  vacationEnd.value = todayStr;
   showVacationModal.value = true;
 };
 
@@ -181,8 +182,8 @@ const markVacation = () => {
     return;
   }
   
-  const start = new Date(vacationStart.value);
-  const end = new Date(vacationEnd.value);
+  const start = new Date(vacationStart.value + 'T12:00:00');
+  const end = new Date(vacationEnd.value + 'T12:00:00');
   
   if (start > end) {
     alert('Дата начала не может быть позже даты окончания');
@@ -195,7 +196,7 @@ const markVacation = () => {
   let removedCount = 0;
   
   while (current <= end) {
-    const dateStr = current.toISOString().split('T')[0] || '';
+    const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
     if (dateStr && newDates[dateStr]) {
       delete newDates[dateStr];
       removedCount++;
@@ -231,7 +232,7 @@ const fillWeekdays = () => {
     const dayOfWeek = d.getDay();
     // Пн-Пт (1-5)
     if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-      const dateStr: string = d.toISOString().split('T')[0] as string;
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       if (newDates[dateStr] === undefined) {
         newDates[dateStr] = { start: '09:00', end: '18:00' };
         count++;
