@@ -38,28 +38,36 @@ const pastAppointments = computed(() => {
 
 const formatDate = (date: string) => {
   const d = new Date(date);
-  const today = new Date();
+  // Получаем UTC дату записи
+  const utcDateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+  
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
   
-  if (d.toDateString() === today.toDateString()) {
+  if (utcDateStr === todayStr) {
     return 'Сегодня';
   }
-  if (d.toDateString() === tomorrow.toDateString()) {
+  if (utcDateStr === tomorrowStr) {
     return 'Завтра';
   }
   
   return d.toLocaleDateString('ru-RU', { 
     day: 'numeric', 
     month: 'short',
-    weekday: 'short'
+    weekday: 'short',
+    timeZone: 'UTC'
   });
 };
 
 const formatTime = (date: string) => {
   return new Date(date).toLocaleTimeString('ru-RU', { 
     hour: '2-digit', 
-    minute: '2-digit' 
+    minute: '2-digit',
+    timeZone: 'UTC'
   });
 };
 
@@ -349,10 +357,10 @@ onBeforeUnmount(() => {
               <!-- Date/Time Badge -->
               <div class="w-14 h-14 rounded-xl bg-accent/10 flex flex-col items-center justify-center flex-shrink-0">
                 <span class="text-sm font-bold leading-none text-accent">
-                  {{ new Date(appt.startTime).getDate() }}
+                  {{ new Date(appt.startTime).getUTCDate() }}
                 </span>
                 <span class="text-xs text-tg-hint">
-                  {{ new Date(appt.startTime).toLocaleDateString('ru-RU', { month: 'short' }) }}
+                  {{ new Date(appt.startTime).toLocaleDateString('ru-RU', { month: 'short', timeZone: 'UTC' }) }}
                 </span>
               </div>
               
@@ -413,10 +421,10 @@ onBeforeUnmount(() => {
               <!-- Date/Time Badge -->
               <div class="w-14 h-14 rounded-xl bg-tg-secondary-bg flex flex-col items-center justify-center flex-shrink-0">
                 <span class="text-sm font-bold leading-none">
-                  {{ new Date(appt.startTime).getDate() }}
+                  {{ new Date(appt.startTime).getUTCDate() }}
                 </span>
                 <span class="text-xs text-tg-hint">
-                  {{ new Date(appt.startTime).toLocaleDateString('ru-RU', { month: 'short' }) }}
+                  {{ new Date(appt.startTime).toLocaleDateString('ru-RU', { month: 'short', timeZone: 'UTC' }) }}
                 </span>
               </div>
               

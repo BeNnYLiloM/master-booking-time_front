@@ -18,13 +18,19 @@ const copied = ref(false);
 const processingId = ref<number | null>(null);
 const stats = ref<any>(null);
 
-// Функция для корректного получения локальной даты из ISO строки
-const getLocalDateString = (isoString: string): string => {
+// Функция для получения даты из ISO строки в UTC (время хранится в UTC)
+const getUTCDateString = (isoString: string): string => {
   const date = new Date(isoString);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+};
+
+// Сегодняшняя дата в формате YYYY-MM-DD (локальная, для календаря)
+const getTodayDateString = (): string => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 };
 
 // Фильтры
@@ -51,17 +57,19 @@ const calendarDays = computed(() => {
   }
   
   // Дни месяца
+  const todayStr = getTodayDateString();
   for (let day = 1; day <= lastDay.getDate(); day++) {
+    // Формируем строку даты напрямую, без toISOString (избегаем сдвиг часового пояса)
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     const date = new Date(year, month, day);
-    const dateStr = date.toISOString().split('T')[0];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const isPast = date < today;
-    const isToday = date.toDateString() === today.toDateString();
+    const isToday = dateStr === todayStr;
     
     // Считаем активные записи на этот день (не отменённые и не завершённые)
     const activeCount = appointments.value.filter(a => {
-      const apptDate = getLocalDateString(a.startTime);
+      const apptDate = getUTCDateString(a.startTime);
       return apptDate === dateStr && a.status !== 'cancelled' && a.status !== 'completed';
     }).length;
     
@@ -109,13 +117,13 @@ const selectDate = (dateStr: string) => {
 
 // Фильтрованные записи
 const filteredAppointments = computed(() => {
-  const today = new Date().toISOString().split('T')[0];
+  const today = getTodayDateString();
   let result = appointments.value;
   
   // Фильтр по дате из календаря (приоритетный)
   if (selectedDate.value) {
     result = result.filter(a => {
-      const apptDate = getLocalDateString(a.startTime);
+      const apptDate = getUTCDateString(a.startTime);
       return apptDate === selectedDate.value;
     });
   } else {
@@ -123,7 +131,7 @@ const filteredAppointments = computed(() => {
     switch (activeFilter.value) {
       case 'today':
         result = result.filter(a => {
-          const apptDate = getLocalDateString(a.startTime);
+          const apptDate = getUTCDateString(a.startTime);
           return apptDate === today && a.status !== 'cancelled';
         });
         break;
@@ -142,9 +150,9 @@ const filteredAppointments = computed(() => {
 
 // Записи на сегодня (для статистики, без отменённых)
 const todayAppointments = computed(() => {
-  const today = new Date().toISOString().split('T')[0];
+  const today = getTodayDateString();
   return appointments.value.filter(a => {
-    const apptDate = getLocalDateString(a.startTime);
+    const apptDate = getUTCDateString(a.startTime);
     return apptDate === today && a.status !== 'cancelled';
   });
 });
@@ -178,7 +186,7 @@ const shareLink = () => {
 };
 
 const formatTime = (date: string) => {
-  return new Date(date).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  return new Date(date).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
 };
 
 const getStatusColor = (status: string) => {
@@ -299,10 +307,11 @@ const selectFilter = (filter: 'all' | 'today' | 'pending') => {
 const listTitle = computed(() => {
   // Если выбран день в календаре
   if (selectedDate.value) {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getTodayDateString();
     if (selectedDate.value === today) return 'Сегодня';
     
-    const date = new Date(selectedDate.value);
+    // Парсим YYYY-MM-DD и создаём дату для форматирования (timeZone: UTC чтобы не было сдвига)
+    const date = new Date(selectedDate.value + 'T12:00:00');
     return date.toLocaleDateString('ru-RU', { 
       weekday: 'long', 
       day: 'numeric', 
@@ -699,7 +708,7 @@ onBeforeUnmount(() => {
               </template>
               <!-- Если все записи — показываем дату и время -->
               <template v-else>
-                <span class="text-sm font-bold leading-none text-accent">{{ new Date(appt.startTime).getDate() }} {{ new Date(appt.startTime).toLocaleDateString('ru-RU', { month: 'short' }) }}</span>
+                <span class="text-sm font-bold leading-none text-accent">{{ new Date(appt.startTime).getUTCDate() }} {{ new Date(appt.startTime).toLocaleDateString('ru-RU', { month: 'short', timeZone: 'UTC' }) }}</span>
                 <span class="text-xs text-tg-hint mt-0.5">{{ formatTime(appt.startTime) }}</span>
               </template>
             </div>
